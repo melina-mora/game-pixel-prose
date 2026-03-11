@@ -1,8 +1,11 @@
 import { renderScene, stopScene } from './sprites.js';
 
 // game.js
-// Architecture note: this file is the single source of truth for game state.
-// Rendering and narrative generation are called as services so rules stay testable.
+// State machine is centralized here so UI, map, and narrative remain synchronized.
+
+const START_TORCHES = 5;
+const TORCH_REWARD_CHANCE = 0.32;
+const MAX_LOG_LINES = 120;
 
 const LOCATIONS = {
   gate: {
@@ -11,7 +14,6 @@ const LOCATIONS = {
     scene: 'gate',
     exits: ['forest', 'tower'],
     encounter: null,
-    loot: null,
     fallback:
       'The ruined gate leans over you like a broken jaw. Two torches spit ember light into wind that should not exist.',
   },
@@ -21,7 +23,6 @@ const LOCATIONS = {
     scene: 'forest',
     exits: ['gate', 'crypt'],
     encounter: 'thornwolf',
-    loot: 'Ember Shard',
     fallback:
       'Branches knot overhead and swallow the moon. Eyes blink in the dark, then close as if they were never there.',
   },
@@ -31,7 +32,6 @@ const LOCATIONS = {
     scene: 'crypt',
     exits: ['forest', 'tower'],
     encounter: 'bonewarden',
-    loot: 'Iron Key',
     fallback:
       'Stone coffins line the hall. Slow drips echo like footsteps, and each echo sounds one step closer than the last.',
   },
@@ -41,7 +41,6 @@ const LOCATIONS = {
     scene: 'tower',
     exits: ['gate', 'crypt', 'throne'],
     encounter: null,
-    loot: null,
     npc: true,
     fallback:
       'Dusty books and rune lamps fill the chamber. A hooded sage waits beside a table, watching as if your arrival was expected.',
@@ -52,7 +51,6 @@ const LOCATIONS = {
     scene: 'throne',
     exits: ['tower'],
     encounter: 'voidregent',
-    loot: null,
     final: true,
     fallback:
       'A basalt throne rises from cracked stone. A sealed dais hums softly, answering the iron key in your pocket.',
@@ -98,6 +96,7 @@ const START_PLAYER = {
   maxHp: 24,
   atk: 5,
   def: 2,
+  torches: START_TORCHES,
 };
 
 const state = {
@@ -121,19 +120,27 @@ const state = {
 };
 
 const ui = {
-  canvas: document.getElementById('scene-canvas'),
+  body: document.body,
+  sceneArt: document.getElementById('scene-art'),
   locationTitle: document.getElementById('location-title'),
   statHp: document.getElementById('stat-hp'),
   hpBar: document.getElementById('hp-bar'),
+  statTorches: document.getElementById('stat-torches'),
+  torchBar: document.getElementById('torch-bar'),
   statAtkDef: document.getElementById('stat-atkdef'),
   statLocation: document.getElementById('stat-location'),
   inventoryList: document.getElementById('inventory-list'),
+  mapNodes: [...document.querySelectorAll('.map-node')],
+  rightPanel: document.querySelector('.right'),
   log: document.getElementById('log'),
   choices: document.getElementById('choices'),
   apiInput: document.getElementById('api-key'),
   apiStatus: document.getElementById('api-status'),
   apiConnect: document.getElementById('api-connect'),
   restart: document.getElementById('restart'),
+  particles: document.getElementById('particles'),
+  parallaxLayers: [...document.querySelectorAll('.parallax-layer')],
+  textSizeButtons: [...document.querySelectorAll('.text-size-btn')],
 };
 
 function randomInt(min, max) {
@@ -212,13 +219,21 @@ async function fetchAiNarration(prompt, fallback) {
 }
 
 function logLine(text, tone = '') {
-  const p = document.createElement('p');
-  p.textContent = text;
+  const line = document.createElement('p');
+  line.textContent = text;
   if (tone) {
-    p.classList.add(tone);
+    line.classList.add(tone);
   }
-  ui.log.appendChild(p);
-  ui.log.scrollTop = ui.log.scrollHeight;
+
+  ui.log.appendChild(line);
+
+  while (ui.log.children.length > MAX_LOG_LINES) {
+    ui.log.removeChild(ui.log.firstElementChild);
+  }
+
+  requestAnimationFrame(() => {
+    ui.log.scrollTo({ top: ui.log.scrollHeight, behavior: 'smooth' });
+  });
 }
 
 function clearLog() {
@@ -227,11 +242,15 @@ function clearLog() {
 
 function renderStats() {
   ui.statHp.textContent = `${state.player.hp} / ${state.player.maxHp}`;
+  ui.statTorches.textContent = String(state.player.torches);
   ui.statAtkDef.textContent = `${state.player.atk} / ${state.player.def}`;
   ui.statLocation.textContent = `${state.visited.size} / ${Object.keys(LOCATIONS).length}`;
 
   const hpPercent = Math.max(0, Math.round((state.player.hp / state.player.maxHp) * 100));
+  const torchPercent = Math.max(0, Math.min(100, Math.round((state.player.torches / START_TORCHES) * 100)));
+
   ui.hpBar.style.width = `${hpPercent}%`;
+  ui.torchBar.style.width = `${torchPercent}%`;
 
   ui.inventoryList.innerHTML = '';
   const entries = Object.entries(state.inventory);
@@ -244,9 +263,9 @@ function renderStats() {
   }
 
   entries.forEach(([item, count]) => {
-    const line = document.createElement('div');
-    line.textContent = `${item}${count > 1 ? ` x${count}` : ''}`;
-    ui.inventoryList.appendChild(line);
+    const itemLine = document.createElement('div');
+    itemLine.textContent = `${item}${count > 1 ? ` x${count}` : ''}`;
+    ui.inventoryList.appendChild(itemLine);
   });
 }
 
@@ -256,26 +275,113 @@ function disableChoices(disabled) {
   });
 }
 
+function renderMap() {
+  const current = state.locationId;
+  const exits = state.phase === 'explore' ? new Set(LOCATIONS[current].exits) : new Set();
+
+  ui.mapNodes.forEach((node) => {
+    const nodeId = node.dataset.location;
+    const nodeLabel = node.dataset.label || nodeId;
+    const isCurrent = nodeId === current;
+    const isDiscovered = isCurrent || state.visited.has(nodeId);
+    const isUnlocked = isCurrent || exits.has(nodeId);
+
+    node.classList.toggle('current', isCurrent);
+    node.classList.toggle('discovered', isDiscovered);
+    node.classList.toggle('undiscovered', !isDiscovered);
+    node.classList.toggle('unlocked', isUnlocked);
+    node.classList.toggle('locked', !isUnlocked);
+
+    node.textContent = isDiscovered ? nodeLabel : '???';
+  });
+}
+
+function maybeGrantTorches() {
+  if (Math.random() > TORCH_REWARD_CHANCE) {
+    return;
+  }
+
+  const reward = randomInt(1, 2);
+  state.player.torches += reward;
+  logLine(`You uncover old pitch and recover ${reward} torch${reward === 1 ? '' : 'es'}.`, 'accent');
+}
+
+function consumeTorch() {
+  if (state.player.torches <= 0) {
+    loseGame('The darkness consumes him.');
+    return false;
+  }
+
+  state.player.torches -= 1;
+  logLine('A torch gutters out. -1 torch.', 'system');
+  renderStats();
+
+  if (state.player.torches <= 0) {
+    loseGame('The darkness consumes him.');
+    return false;
+  }
+
+  return true;
+}
+
+async function runPlayerAction(actionFn, options = {}) {
+  const { allowReward = true, costsTorch = true } = options;
+
+  // Post-game actions (restart) bypass torch checks, while gameplay actions do not.
+  if ((state.flags.won || state.flags.lost) && costsTorch) {
+    return;
+  }
+
+  if (costsTorch && !consumeTorch()) {
+    return;
+  }
+
+  await actionFn();
+
+  if (state.flags.won || state.flags.lost) {
+    renderMap();
+    return;
+  }
+
+  if (allowReward) {
+    maybeGrantTorches();
+  }
+
+  renderStats();
+  renderMap();
+}
+
 function setChoices(choiceDefs) {
   ui.choices.innerHTML = '';
 
   choiceDefs.forEach((choice) => {
+    const costsTorch = choice.costsTorch !== false;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'choice';
-    button.textContent = choice.label;
+    button.textContent = costsTorch ? `${choice.label} [cost: 1 torch]` : choice.label;
     button.disabled = !!choice.disabled;
 
     button.addEventListener('click', async () => {
       if (state.choiceLocked || choice.disabled) {
         return;
       }
+
       state.choiceLocked = true;
       disableChoices(true);
+      renderMap();
+
       try {
-        await choice.run();
+        await runPlayerAction(choice.run, {
+          allowReward: choice.allowReward !== false,
+          costsTorch,
+        });
       } finally {
         state.choiceLocked = false;
+        if (!state.flags.won && !state.flags.lost) {
+          disableChoices(false);
+        }
+        renderMap();
       }
     });
 
@@ -284,11 +390,10 @@ function setChoices(choiceDefs) {
 }
 
 function setScene(sceneKey, options = {}) {
-  // Small fade makes state transitions readable without heavy animation.
-  ui.canvas.classList.add('fade');
+  ui.sceneArt.classList.add('fade');
   setTimeout(() => {
-    renderScene(ui.canvas, sceneKey, options);
-    ui.canvas.classList.remove('fade');
+    renderScene(ui.sceneArt, sceneKey, options);
+    ui.sceneArt.classList.remove('fade');
   }, 90);
 }
 
@@ -296,8 +401,8 @@ function updateLocationTitle(name) {
   ui.locationTitle.textContent = name;
 }
 
-async function enterLocation(locationId, skipIntroNarration = false, expectedSession = state.sessionId) {
-  if (expectedSession !== state.sessionId) {
+async function enterLocation(locationId, skipNarration = false, expectedSession = state.sessionId) {
+  if (expectedSession !== state.sessionId || state.flags.won || state.flags.lost) {
     return;
   }
 
@@ -310,16 +415,19 @@ async function enterLocation(locationId, skipIntroNarration = false, expectedSes
   setScene(location.scene);
   updateLocationTitle(location.name);
   renderStats();
+  renderMap();
 
-  if (!skipIntroNarration) {
-    const description = await fetchAiNarration(
-      `Location: ${location.name}. Player HP: ${state.player.hp}/${state.player.maxHp}. Write scene setup before the next choice.`,
+  if (!skipNarration) {
+    const text = await fetchAiNarration(
+      `Location: ${location.name}. Player HP ${state.player.hp}/${state.player.maxHp}. Player torches ${state.player.torches}. Write 2-4 scene setup sentences before next choice.`,
       location.fallback,
     );
-    if (expectedSession !== state.sessionId) {
+
+    if (expectedSession !== state.sessionId || state.flags.won || state.flags.lost) {
       return;
     }
-    logLine(description);
+
+    logLine(text);
   }
 
   buildExploreChoices();
@@ -333,7 +441,9 @@ function buildExploreChoices() {
     if (location.final) {
       const locked = !hasItem('Iron Key');
       choices.push({
-        label: locked ? 'The final dais is sealed. You need an Iron Key.' : 'Unseal the dais and confront the Hollow Regent',
+        label: locked
+          ? 'The final dais is sealed. You need an Iron Key.'
+          : 'Unseal the dais and confront the Hollow Regent',
         disabled: locked,
         run: async () => {
           await startEncounter(location.encounter);
@@ -388,7 +498,6 @@ function buildExploreChoices() {
       run: async () => {
         removeItem('Healing Tonic');
         state.player.hp = Math.min(state.player.maxHp, state.player.hp + 10);
-        renderStats();
         logLine('The tonic burns bitter, then settles into warmth. You steady your breath.', 'accent');
         buildExploreChoices();
       },
@@ -396,18 +505,26 @@ function buildExploreChoices() {
   }
 
   location.exits.forEach((exitId) => {
-    const exit = LOCATIONS[exitId];
     choices.push({
-      label: `Travel to ${exit.name}`,
+      label: `Travel to ${LOCATIONS[exitId].name}`,
       run: async () => {
-        logLine(`You leave ${location.name} and move toward ${exit.name}.`, 'system');
-        await enterLocation(exitId);
+        logLine(`You leave ${location.name} and move toward ${LOCATIONS[exitId].name}.`, 'system');
+        await enterLocation(exitId, false, state.sessionId);
       },
     });
   });
 
+  choices.push({
+    label: 'Listen to the dark for hidden movement',
+    run: async () => {
+      logLine('You stand still and count your breaths while distant stones shift in the dark.', 'system');
+      buildExploreChoices();
+    },
+  });
+
   setChoices(choices);
   disableChoices(false);
+  renderMap();
 }
 
 async function speakWithSage() {
@@ -421,10 +538,11 @@ async function speakWithSage() {
     : 'The sage extends a bottle and a rune-sigil. "Take these. The key opens stone, but resolve opens fate."';
 
   const line = await fetchAiNarration(
-    `NPC dialogue in a cursed tower. Player inventory: ${JSON.stringify(state.inventory)}. Keep it under 4 sentences and practical.`,
+    `NPC dialogue in a cursed tower. Inventory: ${JSON.stringify(state.inventory)}. Keep it short and practical.`,
     fallback,
   );
-  if (expectedSession !== state.sessionId) {
+
+  if (expectedSession !== state.sessionId || state.flags.won || state.flags.lost) {
     return;
   }
 
@@ -438,14 +556,16 @@ async function speakWithSage() {
     logLine('You receive 2 Healing Tonics and the Sage Mark.', 'accent');
   }
 
+  state.phase = 'explore';
   updateLocationTitle(LOCATIONS[state.locationId].name);
+  setScene(LOCATIONS[state.locationId].scene);
   buildExploreChoices();
-  disableChoices(false);
 }
 
 async function startEncounter(enemyId) {
   const expectedSession = state.sessionId;
   const template = ENEMIES[enemyId];
+
   state.phase = 'encounter';
   state.enemy = {
     ...template,
@@ -454,12 +574,14 @@ async function startEncounter(enemyId) {
 
   setScene('encounter', { enemyName: template.name });
   updateLocationTitle(`Encounter: ${template.name}`);
+  renderMap();
 
   const intro = await fetchAiNarration(
     `Combat opening against ${template.name} at ${LOCATIONS[state.locationId].name}. Keep it tense and immediate.`,
     template.fallback,
   );
-  if (expectedSession !== state.sessionId) {
+
+  if (expectedSession !== state.sessionId || state.flags.won || state.flags.lost) {
     return;
   }
 
@@ -467,12 +589,11 @@ async function startEncounter(enemyId) {
   logLine(`${template.name}: ${state.enemy.hpCurrent} HP`, 'system');
 
   buildEncounterChoices();
-  disableChoices(false);
 }
 
 function applyEnemyTurn(guarding = false) {
   const enemy = state.enemy;
-  if (!enemy) return;
+  if (!enemy || state.flags.won || state.flags.lost) return;
 
   const raw = enemy.atk + randomInt(0, 4);
   const mitigation = state.player.def + (guarding ? 3 : 0) + (hasItem('Sage Mark') ? 1 : 0);
@@ -487,7 +608,7 @@ function applyEnemyTurn(guarding = false) {
   }
 }
 
-function handleVictoryAgainstEnemy() {
+function handleEnemyDefeat() {
   const enemy = state.enemy;
   if (!enemy) return;
 
@@ -510,11 +631,10 @@ function handleVictoryAgainstEnemy() {
   updateLocationTitle(LOCATIONS[state.locationId].name);
   setScene(LOCATIONS[state.locationId].scene);
   buildExploreChoices();
-  disableChoices(false);
 }
 
 async function runCombatTurn(style) {
-  if (!state.enemy || state.phase !== 'encounter') {
+  if (!state.enemy || state.phase !== 'encounter' || state.flags.won || state.flags.lost) {
     return;
   }
 
@@ -537,7 +657,6 @@ async function runCombatTurn(style) {
     if (!removeItem('Ember Shard')) {
       logLine('You reach for a shard, but your pouch is empty.', 'system');
       buildEncounterChoices();
-      disableChoices(false);
       return;
     }
     playerDamage = Math.max(4, state.player.atk + 6 + randomInt(0, 3) - enemy.def);
@@ -545,22 +664,21 @@ async function runCombatTurn(style) {
   }
 
   if (style === 'flee') {
-    const success = Math.random() > 0.45;
-    if (success) {
+    const escaped = Math.random() > 0.45;
+    if (escaped) {
       logLine('You slip between broken stones and escape the encounter.', 'system');
       state.enemy = null;
       state.phase = 'explore';
       updateLocationTitle(LOCATIONS[state.locationId].name);
       setScene(LOCATIONS[state.locationId].scene);
       buildExploreChoices();
-      disableChoices(false);
       return;
     }
+
     logLine('You try to flee, but the enemy cuts off your retreat.', 'danger');
     applyEnemyTurn(false);
     if (!state.flags.lost) {
       buildEncounterChoices();
-      disableChoices(false);
     }
     return;
   }
@@ -569,7 +687,7 @@ async function runCombatTurn(style) {
   logLine(`${enemy.name}: ${enemy.hpCurrent} HP remaining.`, 'system');
 
   if (enemy.hpCurrent <= 0) {
-    handleVictoryAgainstEnemy();
+    handleEnemyDefeat();
     return;
   }
 
@@ -577,7 +695,6 @@ async function runCombatTurn(style) {
 
   if (!state.flags.lost) {
     buildEncounterChoices();
-    disableChoices(false);
   }
 }
 
@@ -621,9 +738,14 @@ function buildEncounterChoices() {
   }
 
   setChoices(choices);
+  disableChoices(false);
 }
 
 async function winGame() {
+  if (state.flags.won || state.flags.lost) {
+    return;
+  }
+
   const expectedSession = state.sessionId;
   state.phase = 'won';
   state.flags.won = true;
@@ -631,21 +753,25 @@ async function winGame() {
 
   setScene('victory');
   updateLocationTitle('Victory');
+  renderMap();
 
-  const text = await fetchAiNarration(
-    'The player has defeated the Hollow Regent and reclaimed the Ember Crown. Write a triumphant but restrained ending.',
+  const ending = await fetchAiNarration(
+    'The player has defeated the Hollow Regent and reclaimed the Ember Crown. Write a restrained dark-fantasy victory ending.',
     'With the regent fallen, the Ember Crown brightens and the valley exhales. Dawn finally reaches the ruined gate.',
   );
+
   if (expectedSession !== state.sessionId) {
     return;
   }
 
-  logLine(text, 'accent');
+  logLine(ending, 'accent');
   logLine('Win condition met: Hollow Regent defeated.', 'system');
 
   setChoices([
     {
       label: 'Start a new run',
+      costsTorch: false,
+      allowReward: false,
       run: async () => {
         resetGame();
       },
@@ -656,6 +782,10 @@ async function winGame() {
 }
 
 function loseGame(reason) {
+  if (state.flags.lost || state.flags.won) {
+    return;
+  }
+
   state.phase = 'lost';
   state.flags.lost = true;
   state.enemy = null;
@@ -664,13 +794,19 @@ function loseGame(reason) {
   updateLocationTitle('Game Over');
 
   logLine(reason, 'danger');
-  logLine('Lose condition met: HP reduced to 0.', 'system');
+  if (reason !== 'The darkness consumes him.') {
+    logLine('Lose condition met: HP reduced to 0.', 'system');
+  } else {
+    logLine('Lose condition met: torches reduced to 0.', 'system');
+  }
 
-  ui.canvas.classList.add('pulse-danger');
+  ui.rightPanel.classList.add('pulse-danger');
 
   setChoices([
     {
       label: 'Try again from the Ruined Gate',
+      costsTorch: false,
+      allowReward: false,
       run: async () => {
         resetGame();
       },
@@ -678,6 +814,50 @@ function loseGame(reason) {
   ]);
 
   disableChoices(false);
+  renderMap();
+}
+
+function createParticles() {
+  ui.particles.innerHTML = '';
+  const particleCount = 36;
+
+  for (let i = 0; i < particleCount; i += 1) {
+    const dot = document.createElement('span');
+    dot.className = 'particle';
+    dot.style.left = `${randomInt(0, 100)}vw`;
+    dot.style.animationDuration = `${randomInt(14, 32)}s`;
+    dot.style.animationDelay = `${randomInt(0, 20)}s`;
+    dot.style.opacity = (Math.random() * 0.55).toFixed(2);
+    ui.particles.appendChild(dot);
+  }
+}
+
+function applyTextSize(size) {
+  const className = `text-size-${size}`;
+  ui.body.classList.remove('text-size-small', 'text-size-medium', 'text-size-large');
+  ui.body.classList.add(className);
+  ui.textSizeButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.size === size);
+  });
+}
+
+function bindParallax() {
+  if (!ui.parallaxLayers.length) {
+    return;
+  }
+
+  window.addEventListener('mousemove', (event) => {
+    const nx = event.clientX / window.innerWidth - 0.5;
+    const ny = event.clientY / window.innerHeight - 0.5;
+    const strengths = [8, 14, 20];
+
+    ui.parallaxLayers.forEach((layer, index) => {
+      const strength = strengths[index] || 10;
+      const tx = nx * strength;
+      const ty = ny * strength;
+      layer.style.transform = `translate(${tx}px, ${ty}px)`;
+    });
+  });
 }
 
 function bindUi() {
@@ -706,6 +886,12 @@ function bindUi() {
   ui.restart.addEventListener('click', () => {
     resetGame();
   });
+
+  ui.textSizeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      applyTextSize(button.dataset.size || 'medium');
+    });
+  });
 }
 
 function resetGame() {
@@ -728,14 +914,17 @@ function resetGame() {
   state.inventory = {};
   state.choiceLocked = false;
 
-  ui.canvas.classList.remove('pulse-danger');
+  ui.rightPanel.classList.remove('pulse-danger');
   clearLog();
   renderStats();
 
-  logLine('You arrive at the Ruined Gate with a dim lantern and a name you barely remember.', 'system');
+  logLine('You arrive at the Ruined Gate with five torches and a name you barely remember.', 'system');
+  logLine('Every action costs one torch. If your light reaches zero, the dark takes you.', 'system');
 
   enterLocation('gate', false, state.sessionId);
 }
 
 bindUi();
+bindParallax();
+createParticles();
 resetGame();
