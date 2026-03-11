@@ -1,1863 +1,370 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Pixel & Prose</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emberward: Pixel Prose RPG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <style>
-    /* ── DESIGN TOKENS ───────────────────────────────────────── */
+    /* Design tokens are centralized so JS scene rendering and UI styling stay visually aligned. */
     :root {
-      --bg:     #0D0C0A;
-      --panel:  #1C1A17;
-      --panel2: #2A2825;
-      --text:   #F5F0E8;
-      --mist:   #8C8679;
-      --ember:  #C8692A;
-      --gold:   #A8924A;
-      --border: #3D3A35;
-      --danger: #8B1A1A;
+      --bg: #0D0C0A;
+      --text: #F5F0E8;
+      --panel: #2A2825;
+      --ember: #C8692A;
+      --gold: #A8924A;
+      --mist: #8C8679;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: 100%; height: 100%;
-      background: var(--bg);
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 78% 12%, rgba(200, 105, 42, 0.11), transparent 34%),
+        linear-gradient(180deg, rgba(42, 40, 37, 0.65) 0%, var(--bg) 52%);
       color: var(--text);
-      font-family: 'Crimson Pro', Georgia, serif;
+      font-family: "Crimson Pro", serif;
       font-weight: 300;
-      overflow: hidden;
     }
 
-    /* ── ANIMATIONS ──────────────────────────────────────────── */
-    @keyframes flicker    { 0%,100%{opacity:1}33%{opacity:.8}66%{opacity:.93} }
-    @keyframes slide-in   { from{transform:translateX(-16px);opacity:0} to{transform:translateX(0);opacity:1} }
-    @keyframes fade-up    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes shake      { 0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)} }
-    @keyframes torch-pulse{ 0%,100%{text-shadow:0 0 8px #C8692A,0 0 16px #A8924A}50%{text-shadow:0 0 4px #C8692A,0 0 8px #A8924A} }
-    @keyframes darkness   { 0%{background:rgba(0,0,0,0)} 100%{background:rgba(0,0,0,0.96)} }
-    @keyframes vignette-pulse { 0%,100%{box-shadow:inset 0 0 60px rgba(139,26,26,0.15)} 50%{box-shadow:inset 0 0 120px rgba(139,26,26,0.45)} }
-
-    /* ── LAYOUT ──────────────────────────────────────────────── */
-    #app {
-      display: grid;
-      grid-template-columns: 196px 1fr 190px;
-      grid-template-rows: 52px 1fr 188px;
-      grid-template-areas:
-        "header header header"
-        "sidebar main   stats"
-        "sidebar input  stats";
-      height: 100vh;
+    /* Two-panel shell keeps art/stats persistent while narrative + choices change frequently. */
+    .shell {
       max-width: 1120px;
       margin: 0 auto;
-      gap: 1px;
-      background: var(--border);
+      min-height: 100vh;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 14px;
     }
 
-    /* ── HEADER ──────────────────────────────────────────────── */
-    #header {
-      grid-area: header;
-      background: var(--panel);
-      display: flex;
-      align-items: center;
-      padding: 0 20px;
-      gap: 14px;
-      border-bottom: 1px solid var(--ember);
+    .left,
+    /* Right panel is split into stable controls, streaming narrative log, then actions. */
+    .right {
+      background: linear-gradient(180deg, rgba(42, 40, 37, 0.9) 0%, var(--panel) 100%);
+      border: 1px solid rgba(140, 134, 121, 0.35);
+      box-shadow: 0 0 0 1px rgba(13, 12, 10, 0.6) inset;
     }
-    #header h1 {
-      font-family: 'Cinzel', serif;
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.3em;
+
+    .left {
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .title {
+      border-bottom: 1px solid rgba(168, 146, 74, 0.55);
+      padding-bottom: 10px;
+    }
+
+    .title h1 {
+      font-family: "Cinzel", serif;
+      font-size: 1.12rem;
+      letter-spacing: 0.18em;
       color: var(--gold);
       text-transform: uppercase;
     }
-    .header-sub {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.58rem;
-      color: var(--mist);
-      letter-spacing: 0.18em;
-    }
-    /* Torch counter in header */
-    #torch-display {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    #torch-icons {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-    }
-    .torch-icon {
-      font-size: 1rem;
-      transition: opacity 0.3s, filter 0.3s;
-      animation: torch-pulse 2s infinite;
-    }
-    .torch-icon.spent {
-      opacity: 0.15;
-      filter: grayscale(1);
-      animation: none;
-    }
-    #torch-count {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      color: var(--ember);
-      letter-spacing: 0.1em;
-    }
-    #api-status {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.58rem;
-      letter-spacing: 0.1em;
-      padding: 3px 8px;
-      border: 1px solid;
-      border-radius: 2px;
-    }
-    #api-status.live    { color: #7ACA7A; border-color: #2A5A2A; background: #0A180A; }
-    #api-status.offline { color: var(--mist); border-color: var(--border); background: var(--panel); }
-    #api-status.loading { color: var(--gold); border-color: var(--gold); animation: flicker 0.7s infinite; }
 
-    /* ── SIDEBAR / SCENE ─────────────────────────────────────── */
-    #sidebar {
-      grid-area: sidebar;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 18px 10px;
-      gap: 10px;
-      border-right: 1px solid var(--border);
-      overflow: hidden;
-      position: relative;
-    }
-    /* Low-torch vignette warning */
-    #sidebar.low-torch { animation: vignette-pulse 1.5s infinite; }
-
-    #location-name {
-      font-family: 'Cinzel', serif;
+    .title p {
+      margin-top: 4px;
+      font-family: "JetBrains Mono", monospace;
       font-size: 0.62rem;
-      letter-spacing: 0.22em;
-      color: var(--ember);
+      color: var(--mist);
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      text-align: center;
     }
-    /* Canvas: 128×128 internal, displayed at 176×176 for crisper pixels */
+
+    .scene-frame {
+      background: var(--bg);
+      border: 1px solid rgba(140, 134, 121, 0.4);
+      padding: 8px;
+    }
+
     #scene-canvas {
-      width: 176px;
-      height: 176px;
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      height: auto;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-      flex-shrink: 0;
-      border: 1px solid var(--border);
-    }
-    #scene-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.5rem;
-      color: var(--mist);
-      letter-spacing: 0.12em;
-      text-align: center;
-    }
-
-    /* ── MAIN NARRATIVE ──────────────────────────────────────── */
-    #main {
-      grid-area: main;
       background: var(--bg);
-      overflow-y: auto;
-      padding: 18px 22px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 11px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
+      transition: opacity 220ms ease;
     }
-    #main::-webkit-scrollbar { width: 3px; }
-    #main::-webkit-scrollbar-thumb { background: var(--border); }
 
-    .narrative-block {
-      animation: fade-up 0.35s ease forwards;
-      line-height: 1.8;
-      font-size: 0.92rem;
-      color: var(--text);
+    #scene-canvas.fade {
+      opacity: 0.35;
     }
-    .narrative-block.system {
-      font-family: 'JetBrains Mono', monospace;
+
+    .location-title {
+      margin-top: 8px;
+      font-family: "Cinzel", serif;
+      font-size: 0.74rem;
+      letter-spacing: 0.14em;
+      color: var(--ember);
+      text-transform: uppercase;
+    }
+
+    .meta {
+      display: grid;
+      gap: 7px;
+      font-family: "JetBrains Mono", monospace;
       font-size: 0.68rem;
       color: var(--mist);
-      border-left: 2px solid var(--border);
-      padding-left: 10px;
-    }
-    .narrative-block.combat  { color: #E08060; font-style: italic; }
-    .narrative-block.loot    { color: var(--gold); }
-    .narrative-block.torch   { color: var(--ember); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
-    .narrative-block.warning { color: #CC4444; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
-    .narrative-block.ai-generated::before { content: "✦ "; color: var(--ember); font-size: 0.68rem; }
-    .narrative-block.ai-loading { color: var(--mist); font-style: italic; animation: flicker 1.4s infinite; }
-    .divider { border: none; border-top: 1px solid var(--border); margin: 3px 0; }
-
-    /* ── INPUT / CHOICES ─────────────────────────────────────── */
-    #input-panel {
-      grid-area: input;
-      background: var(--panel);
-      border-top: 1px solid var(--border);
-      padding: 12px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      overflow-y: auto;
-    }
-    #choices-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.58rem;
-      letter-spacing: 0.18em;
-      color: var(--mist);
       text-transform: uppercase;
     }
-    #choices { display: flex; flex-direction: column; gap: 5px; }
-    .choice-btn {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      padding: 8px 13px;
-      text-align: left;
-      cursor: pointer;
-      transition: border-color 0.12s, background 0.12s;
-      letter-spacing: 0.04em;
-      line-height: 1.45;
-      animation: slide-in 0.28s ease forwards;
-      position: relative;
-    }
-    .choice-btn::before { content: "› "; color: var(--ember); }
-    .choice-btn:hover   { border-color: var(--ember); background: #161410; }
-    .choice-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    /* Torch cost indicator on each choice */
-    .choice-btn::after {
-      content: "🔥";
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 0.65rem;
-      opacity: 0.5;
-    }
 
-    /* ── STATS PANEL ─────────────────────────────────────────── */
-    #stats-panel {
-      grid-area: stats;
-      background: var(--panel);
-      border-left: 1px solid var(--border);
-      padding: 14px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      overflow-y: auto;
-    }
-    .stat-section-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.52rem;
-      letter-spacing: 0.22em;
-      color: var(--mist);
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 4px;
-    }
     .stat-row {
       display: flex;
       justify-content: space-between;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.63rem;
-      color: var(--mist);
+      gap: 16px;
+    }
+
+    .stat-row strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(13, 12, 10, 0.8);
+      border: 1px solid rgba(140, 134, 121, 0.38);
       margin-top: 5px;
     }
-    .stat-row .val       { color: var(--text); }
-    .stat-row .val.bad   { color: #E06060; }
-    .stat-row .val.good  { color: #7ACA7A; }
-    #hp-bar-wrap { height: 5px; background: var(--bg); margin-top: 4px; overflow: hidden; }
-    #hp-bar      { height: 100%; background: var(--ember); transition: width 0.4s, background 0.4s; }
 
-    /* Torch bar in stats */
-    #torch-bar-wrap { height: 5px; background: var(--bg); margin-top: 4px; overflow: hidden; }
-    #torch-bar      { height: 100%; background: var(--gold); transition: width 0.4s, background 0.4s; }
-
-    .inv-item {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.58rem;
-      color: var(--gold);
-      padding: 3px 0;
-      border-bottom: 1px solid var(--border);
-      animation: slide-in 0.28s ease;
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, var(--ember), var(--gold));
+      transition: width 220ms ease;
     }
-    .inv-item::before { content: "◆ "; color: var(--ember); }
-    .inv-empty {
-      font-family: 'JetBrains Mono', monospace;
+
+    .inventory {
+      border-top: 1px solid rgba(140, 134, 121, 0.28);
+      padding-top: 8px;
+      min-height: 70px;
+    }
+
+    .inventory h2 {
+      font-family: "JetBrains Mono", monospace;
+      color: var(--mist);
+      font-size: 0.62rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    #inventory-list {
+      display: grid;
+      gap: 4px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.66rem;
+      color: var(--gold);
+    }
+
+    .right {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(140, 134, 121, 0.28);
+      padding: 12px;
+    }
+
+    .api-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .tag {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--mist);
+    }
+
+    .api-status {
+      padding: 4px 6px;
+      border: 1px solid rgba(140, 134, 121, 0.42);
+      font-family: "JetBrains Mono", monospace;
       font-size: 0.58rem;
-      color: var(--border);
+      text-transform: uppercase;
+      color: var(--mist);
+      letter-spacing: 0.08em;
+    }
+
+    .api-status.live {
+      color: var(--gold);
+      border-color: rgba(168, 146, 74, 0.64);
+    }
+
+    input,
+    button {
+      border: 1px solid rgba(140, 134, 121, 0.42);
+      background: var(--bg);
+      color: var(--text);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.62rem;
+      padding: 6px 8px;
+    }
+
+    input {
+      width: 180px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: border-color 160ms ease, color 160ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--ember);
+      color: var(--ember);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #log {
+      overflow-y: auto;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    #log p {
+      line-height: 1.7;
+      font-size: 0.98rem;
+      animation: appear 180ms ease-out;
+    }
+
+    #log p.system {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.03em;
+      color: var(--mist);
+    }
+
+    #log p.accent {
+      color: var(--gold);
+    }
+
+    #log p.danger {
+      color: var(--ember);
       font-style: italic;
     }
-    #journal {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.52rem;
-      color: var(--mist);
-      line-height: 1.65;
+
+    #choices {
+      border-top: 1px solid rgba(140, 134, 121, 0.28);
+      padding: 10px 12px 14px;
+      display: grid;
+      gap: 8px;
+      background:
+        linear-gradient(180deg, rgba(13, 12, 10, 0.35) 0%, rgba(13, 12, 10, 0.62) 100%);
     }
 
-    /* ── DARKNESS OVERLAY (torch = 0) ───────────────────────── */
-    #darkness-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0);
-      pointer-events: none;
-      z-index: 50;
-      transition: background 2s ease;
+    .choice {
+      text-align: left;
+      letter-spacing: 0.02em;
+      padding: 8px 10px;
+      font-size: 0.67rem;
     }
-    #darkness-overlay.consuming { background: rgba(0,0,0,0.97); pointer-events: all; }
 
-    /* ── API MODAL ───────────────────────────────────────────── */
-    #api-modal {
-      position: fixed; inset: 0;
-      background: rgba(13,12,10,0.95);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 200;
-      backdrop-filter: blur(3px);
-    }
-    #api-modal.hidden { display: none; }
-    #api-modal-inner {
-      background: var(--panel2);
-      border: 1px solid var(--ember);
-      padding: 30px;
-      max-width: 460px;
-      width: 92%;
-    }
-    #api-modal h2 {
-      font-family: 'Cinzel', serif;
-      font-size: 1.15rem;
-      color: var(--gold);
-      margin-bottom: 6px;
-      letter-spacing: 0.12em;
-    }
-    #api-modal .modal-tagline {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.6rem;
+    .choice::before {
+      content: "> ";
       color: var(--ember);
-      letter-spacing: 0.2em;
-      margin-bottom: 14px;
     }
-    #api-modal p { font-size: 0.84rem; color: var(--mist); margin-bottom: 16px; line-height: 1.65; }
-    #api-modal input {
-      width: 100%; background: var(--bg); border: 1px solid var(--border);
-      color: var(--text); font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem; padding: 10px 12px; margin-bottom: 12px; outline: none;
-    }
-    #api-modal input:focus { border-color: var(--ember); }
-    #modal-btns { display: flex; gap: 10px; }
-    .modal-btn {
-      background: var(--bg); border: 1px solid var(--ember); color: var(--ember);
-      font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
-      padding: 9px 18px; cursor: pointer; letter-spacing: 0.1em; transition: background 0.12s;
-    }
-    .modal-btn:hover { background: #1C1008; }
-    .modal-btn.sec { border-color: var(--border); color: var(--mist); }
-    .modal-btn.sec:hover { background: #181614; }
 
-    /* ── RESPONSIVE ──────────────────────────────────────────── */
-    @media (max-width: 700px) {
-      #app {
+    .pulse-danger {
+      animation: pulseDanger 1.4s infinite;
+    }
+
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulseDanger {
+      0%, 100% { box-shadow: inset 0 0 0 0 rgba(200, 105, 42, 0.08); }
+      50% { box-shadow: inset 0 0 0 2px rgba(200, 105, 42, 0.3); }
+    }
+
+    @media (max-width: 980px) {
+      .shell {
         grid-template-columns: 1fr;
-        grid-template-rows: 52px auto 1fr 180px auto;
-        grid-template-areas: "header" "sidebar" "main" "input" "stats";
-        height: auto; min-height: 100vh; overflow-y: auto;
       }
-      #sidebar { flex-direction: row; padding: 10px; border-right: none; border-bottom: 1px solid var(--border); }
-      #stats-panel { border-left: none; border-top: 1px solid var(--border); }
-      html, body { overflow: auto; }
+
+      input {
+        width: 140px;
+      }
     }
   </style>
 </head>
 <body>
+  <!-- Static HTML skeleton; game flow and scene switching are controlled by game.js state transitions. -->
+  <div class="shell">
+    <aside class="left">
+      <section class="title">
+        <h1>Emberward</h1>
+        <p>Pixel Prose RPG</p>
+      </section>
 
-<!-- Darkness overlay — fades in when torches hit 0 -->
-<div id="darkness-overlay"></div>
+      <section class="scene-frame">
+        <canvas id="scene-canvas" width="160" height="120" aria-label="Current scene" role="img"></canvas>
+        <div id="location-title" class="location-title">Ruined Gate</div>
+      </section>
 
-<!-- API key modal -->
-<div id="api-modal">
-  <div id="api-modal-inner">
-    <h2>Pixel &amp; Prose</h2>
-    <div class="modal-tagline">🔥 A TEXT RPG OF LIGHT AND SHADOW 🔥</div>
-    <p>
-      You carry five torches into the dark. Every decision burns one.
-      Choose wisely — some paths reward you with light, others leave you with nothing.<br><br>
-      Optionally enter an Anthropic API key to unlock AI-generated narrative. The game is fully playable without one.
-    </p>
-    <input type="password" id="api-key-input" placeholder="sk-ant-api03-... (optional)" autocomplete="off"/>
-    <div id="modal-btns">
-      <button class="modal-btn" onclick="initWithKey()">Light the First Torch</button>
-      <button class="modal-btn sec" onclick="initWithoutKey()">Play Offline</button>
-    </div>
-  </div>
-</div>
+      <section class="meta">
+        <div class="stat-row"><span>HP</span><strong id="stat-hp">24 / 24</strong></div>
+        <div class="bar" aria-hidden="true"><span id="hp-bar"></span></div>
+        <div class="stat-row"><span>Atk / Def</span><strong id="stat-atkdef">5 / 2</strong></div>
+        <div class="stat-row"><span>Location</span><strong id="stat-location">1 / 5</strong></div>
+      </section>
 
-<!-- Main UI -->
-<div id="app">
-  <header id="header">
-    <h1>Pixel &amp; Prose</h1>
-    <span class="header-sub">a text rpg</span>
-    <div id="torch-display">
-      <div id="torch-icons"></div>
-      <div id="torch-count">5 torches</div>
-    </div>
-    <div id="api-status" class="offline">◌ OFFLINE</div>
-  </header>
+      <section class="inventory">
+        <h2>Inventory</h2>
+        <div id="inventory-list"></div>
+      </section>
+    </aside>
 
-  <aside id="sidebar">
-    <div id="location-name">—</div>
-    <canvas id="scene-canvas" width="128" height="128"></canvas>
-    <div id="scene-label">the dark awaits...</div>
-  </aside>
+    <main class="right">
+      <header class="topbar">
+        <span class="tag">Explore -> Encounter -> Choose -> Consequence</span>
+        <div class="api-group">
+          <span id="api-status" class="api-status">AI Offline</span>
+          <input id="api-key" type="password" placeholder="OpenAI key (optional)" autocomplete="off" />
+          <button id="api-connect" type="button">Connect</button>
+          <button id="restart" type="button">Restart</button>
+        </div>
+      </header>
 
-  <main id="main" role="log" aria-live="polite"></main>
-
-  <div id="input-panel">
-    <div id="choices-label">— What do you do? (costs 1 torch) —</div>
-    <div id="choices"></div>
+      <section id="log" aria-live="polite"></section>
+      <section id="choices" aria-label="Available choices"></section>
+    </main>
   </div>
 
-  <aside id="stats-panel">
-    <div>
-      <div class="stat-section-label">Character</div>
-      <div class="stat-row"><span>Name</span><span class="val" id="stat-name">—</span></div>
-      <div class="stat-row"><span>HP</span><span class="val" id="stat-hp">—</span></div>
-      <div id="hp-bar-wrap"><div id="hp-bar" style="width:100%"></div></div>
-      <div class="stat-row"><span>ATK</span><span class="val" id="stat-atk">—</span></div>
-      <div class="stat-row"><span>DEF</span><span class="val" id="stat-def">—</span></div>
-    </div>
-    <div>
-      <div class="stat-section-label">Torches</div>
-      <div class="stat-row"><span>Remaining</span><span class="val" id="stat-torches">—</span></div>
-      <div id="torch-bar-wrap"><div id="torch-bar" style="width:100%"></div></div>
-      <div class="stat-row" style="margin-top:6px"><span>Decisions</span><span class="val" id="stat-decisions">0</span></div>
-      <div class="stat-row"><span>Explored</span><span class="val" id="stat-explored">0/5</span></div>
-    </div>
-    <div>
-      <div class="stat-section-label">Inventory</div>
-      <div id="inventory-list"><div class="inv-empty">empty</div></div>
-    </div>
-    <div>
-      <div class="stat-section-label">Journal</div>
-      <div id="journal"></div>
-    </div>
-  </aside>
-</div>
-
-<!-- ================================================================
-     SPRITES — 8-bit pixel art via HTML5 Canvas
-     Internal canvas: 128×128, displayed at 176×176 (pixelated scaling)
-     Color discipline: only use palette constants — no raw hex in draw fns.
-     Each scene uses a static base layer + minimal animation for atmosphere.
-     ================================================================ -->
-<script>
-// ── Palette: 4 shades per tone — classic 8-bit constraint ──────────
-// Each "color" has 4 values: shadow, mid, bright, highlight
-const C = {
-  BLACK:  '#0D0C0A',
-  D3:     '#1C1A17',  // darkest gray
-  D2:     '#2A2825',
-  D1:     '#3D3A35',
-  MID:    '#5C5850',
-  MIST:   '#8C8679',
-  LIGHT:  '#C4BDB0',
-  WHITE:  '#F5F0E8',
-  // Ember (fire) tones
-  E1:     '#3D1A08',
-  E2:     '#7A3214',
-  E3:     '#C8692A',
-  E4:     '#F0A050',
-  // Gold tones
-  G1:     '#3A2E10',
-  G2:     '#6A5420',
-  G3:     '#A8924A',
-  G4:     '#D4BC70',
-  // Red (danger)
-  R1:     '#2A0808',
-  R2:     '#5A1414',
-  R3:     '#8B2A2A',
-  R4:     '#CC4444',
-};
-
-// ── Pixel helper: draws a 1px-scale block ──────────────────────────
-function P(ctx, x, y, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, 1, 1);
-}
-// Block helper: fills a rectangular region
-function B(ctx, x, y, w, h, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
-}
-
-function stopScene() {
-  if (window._af) cancelAnimationFrame(window._af);
-  window._af = null;
-}
-
-// ── SCENE: Ruined Gate ─────────────────────────────────────────────
-// 8-bit technique: isometric stone blocks with shadow/highlight pixels
-// on every edge; torch flame uses 3-shade dithering.
-function drawRuinedGate(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  // Static base — drawn once, then flame animates on top
-  function drawBase() {
-    // Sky — dark gradient via dithered bands
-    B(ctx, 0, 0, W, H, C.BLACK);
-    for (let y = 0; y < 60; y++) {
-      const shade = y < 20 ? C.D3 : y < 40 ? C.BLACK : C.D3;
-      // Dither with checker pattern for gradient illusion
-      for (let x = y % 2; x < W; x += 2) P(ctx, x, y, C.D3);
-    }
-
-    // Stars
-    const stars = [[8,4],[22,11],[44,5],[68,16],[90,7],[112,13],[100,3],[33,19],[78,8]];
-    stars.forEach(([sx, sy]) => {
-      P(ctx, sx, sy, C.WHITE);
-      P(ctx, sx+1, sy, C.LIGHT); // slight bloom
-    });
-
-    // Moon (top right)
-    B(ctx, 98, 6, 10, 10, C.LIGHT);
-    B(ctx, 99, 5, 8, 12, C.LIGHT);
-    B(ctx, 100, 4, 6, 14, C.WHITE);
-    // Moon shadow (crescent effect)
-    B(ctx, 103, 6, 8, 9, C.D3);
-    B(ctx, 102, 7, 8, 7, C.BLACK);
-
-    // Ground
-    B(ctx, 0, 104, W, 24, C.D2);
-    B(ctx, 0, 104, W, 2, C.D1);
-    // Ground dither texture
-    for (let x = 0; x < W; x += 4) {
-      P(ctx, x, 106, C.D1);
-      P(ctx, x+2, 108, C.MID);
-      P(ctx, x+1, 112, C.D3);
-    }
-    // Ground highlight strip
-    for (let x = 0; x < W; x += 2) P(ctx, x, 104, C.MID);
-
-    // ── Left Tower ──
-    // Main body with shading: left face darker, right face lighter
-    B(ctx, 10, 42, 28, 72, C.D2);        // main block
-    B(ctx, 10, 42, 4, 72, C.D3);         // left shadow face
-    B(ctx, 34, 42, 4, 72, C.D1);         // right highlight face
-    // Stone brick rows (alternating offsets)
-    for (let row = 0; row < 7; row++) {
-      const ry = 44 + row * 10;
-      const off = row % 2 === 0 ? 0 : 5;
-      for (let bx = off; bx < 26; bx += 10) {
-        P(ctx, 11 + bx, ry, C.D3);       // top mortar line
-        P(ctx, 11 + bx, ry + 9, C.D1);  // bottom mortar
-        if (bx + 9 < 26) P(ctx, 11 + bx + 9, ry + 4, C.D3); // vert mortar
-      }
-    }
-    // Battlements (crenellations)
-    [10, 18, 26].forEach(bx => B(ctx, bx, 34, 6, 10, C.D2));
-    [14, 22, 30].forEach(bx => B(ctx, bx, 32, 4, 4, C.D3));
-    // Battlement highlights
-    [10, 18, 26].forEach(bx => { P(ctx, bx, 34, C.D1); B(ctx, bx, 34, 6, 1, C.D1); });
-
-    // ── Right Tower (mirror) ──
-    B(ctx, 90, 42, 28, 72, C.D2);
-    B(ctx, 90, 42, 4, 72, C.D3);
-    B(ctx, 114, 42, 4, 72, C.D1);
-    for (let row = 0; row < 7; row++) {
-      const ry = 44 + row * 10, off = row % 2 === 0 ? 0 : 5;
-      for (let bx = off; bx < 26; bx += 10) {
-        P(ctx, 91 + bx, ry, C.D3); P(ctx, 91 + bx, ry + 9, C.D1);
-        if (bx + 9 < 26) P(ctx, 91 + bx + 9, ry + 4, C.D3);
-      }
-    }
-    [90, 98, 106].forEach(bx => B(ctx, bx, 34, 6, 10, C.D2));
-    [94, 102, 110].forEach(bx => B(ctx, bx, 32, 4, 4, C.D3));
-    [90, 98, 106].forEach(bx => B(ctx, bx, 34, 6, 1, C.D1));
-
-    // ── Gate arch ──
-    // Arch voussoir blocks
-    B(ctx, 44, 68, 40, 46, C.BLACK);   // gate opening
-    B(ctx, 42, 66, 44, 4, C.D2);       // arch lintel top
-    B(ctx, 42, 66, 4, 40, C.D2);       // left jamb
-    B(ctx, 82, 66, 4, 40, C.D2);       // right jamb
-    // Arch curve — pixel-approximated semicircle
-    const archPixels = [[54,65],[56,64],[58,63],[60,62],[62,62],[64,62],[66,63],[68,64],[70,65]];
-    archPixels.forEach(([ax,ay]) => { P(ctx, ax, ay, C.D2); P(ctx, ax, ay-1, C.D1); });
-    // Portcullis bars
-    for (let bar = 0; bar < 4; bar++) {
-      const bx = 46 + bar * 9;
-      B(ctx, bx, 67, 2, 43, C.D1);
-      P(ctx, bx, 67, C.MID); // top highlight
-    }
-    // Horizontal portcullis bar
-    B(ctx, 44, 84, 40, 2, C.D1);
-    B(ctx, 44, 84, 40, 1, C.MID);
-
-    // Cobblestone path
-    const stones = [[46,106,14,6],[60,108,16,5],[44,112,10,5],[55,112,18,5],[36,107,8,4],[76,106,12,5]];
-    stones.forEach(([sx,sy,sw,sh]) => {
-      B(ctx, sx, sy, sw, sh, C.D1);
-      P(ctx, sx, sy, C.MID);       // top-left highlight
-      P(ctx, sx+sw-1, sy+sh-1, C.D3); // bottom-right shadow
-    });
-  }
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    drawBase();
-
-    // ── Left torch flame — 3-color dithered flicker ──
-    // Flame shape changes per frame using t-based sine offsets
-    const f1 = Math.sin(t * 0.009) * 1.5;
-    const f1h = 6 + Math.sin(t * 0.007) * 2;
-    // Torch handle
-    B(ctx, 39, 85, 3, 10, C.MID);
-    B(ctx, 39, 85, 1, 10, C.LIGHT); // highlight
-    // Flame outer (ember)
-    B(ctx, 37 + Math.round(f1), Math.round(79 - f1h), 7, Math.round(f1h + 2), C.E3);
-    // Flame mid (bright)
-    B(ctx, 38 + Math.round(f1 * 0.5), Math.round(80 - f1h), 5, Math.round(f1h), C.E4);
-    // Flame core (white hot)
-    B(ctx, 39 + Math.round(f1 * 0.3), Math.round(81 - f1h * 0.6), 3, Math.round(f1h * 0.5), C.WHITE);
-    // Glow — dithered pixels radiating outward
-    const glowR = [[36,82],[35,84],[36,86],[44,82],[45,84],[44,86],[40,75],[40,74]];
-    glowR.forEach(([gx,gy]) => { ctx.globalAlpha = 0.35 + Math.sin(t*0.011)*0.15; P(ctx, gx, gy, C.E3); });
-    ctx.globalAlpha = 1;
-
-    // ── Right torch flame ──
-    const f2 = Math.sin(t * 0.011 + 1.2) * 1.5;
-    const f2h = 6 + Math.sin(t * 0.008 + 0.8) * 2;
-    B(ctx, 86, 85, 3, 10, C.MID);
-    B(ctx, 86, 85, 1, 10, C.LIGHT);
-    B(ctx, 84 + Math.round(f2), Math.round(79 - f2h), 7, Math.round(f2h + 2), C.E3);
-    B(ctx, 85 + Math.round(f2 * 0.5), Math.round(80 - f2h), 5, Math.round(f2h), C.E4);
-    B(ctx, 86 + Math.round(f2 * 0.3), Math.round(81 - f2h * 0.6), 3, Math.round(f2h * 0.5), C.WHITE);
-    [[82,82],[81,84],[82,86],[90,82],[91,84],[90,86],[87,75],[87,74]].forEach(([gx,gy]) => {
-      ctx.globalAlpha = 0.35 + Math.sin(t*0.009+1)*0.15; P(ctx, gx, gy, C.E3);
-    });
-    ctx.globalAlpha = 1;
-
-    // Star twinkle — flip a few pixels each frame
-    if (Math.sin(t * 0.003) > 0.5) P(ctx, 44, 5, C.D3);   // dim star
-    if (Math.sin(t * 0.004 + 1) > 0.6) P(ctx, 68, 16, C.D3);
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Emberwood Forest ────────────────────────────────────────
-// 8-bit: layered parallax silhouettes with pixel dithering on edges.
-// Eyes use a 2-pixel dot that blinks on a timer.
-function drawForest(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function drawBase() {
-    B(ctx, 0, 0, W, H, C.BLACK);
-    // Night sky — dithered gradient
-    for (let y = 0; y < 70; y += 2) {
-      for (let x = y % 4; x < W; x += 4) P(ctx, x, y, C.D3);
-    }
-    // Moon
-    B(ctx, 106, 8, 12, 12, C.LIGHT);
-    B(ctx, 107, 7, 10, 14, C.WHITE);
-    B(ctx, 109, 8, 8, 11, C.D3); // crescent shadow
-    // Stars
-    [[10,6],[28,12],[55,5],[80,18],[38,8],[92,4],[17,20],[70,10]].forEach(([x,y])=>P(ctx,x,y,C.WHITE));
-
-    // Ground (dark earth)
-    B(ctx, 0, 96, W, 32, C.D3);
-    B(ctx, 0, 96, W, 2, C.D2);
-    // Ground dither
-    for (let x = 0; x < W; x += 3) {
-      P(ctx, x, 98, C.D2);
-      P(ctx, x+1, 100, C.MID);
-    }
-
-    // ── Background trees (far) — lighter silhouette ──
-    function drawTree(tx, ty, tw, th, shade1, shade2) {
-      // Trunk
-      B(ctx, tx + tw/2 - 1, ty + th - 8, 3, 8, shade1);
-      P(ctx, tx + tw/2 - 1, ty + th - 8, shade2); // highlight
-      // Canopy blocks (layered for depth)
-      B(ctx, tx, ty + th/2, tw, th/2, shade1);          // lower foliage
-      B(ctx, tx+2, ty + th/4, tw-4, th/2, shade1);      // mid foliage
-      B(ctx, tx+4, ty, tw-8, th/4 + 2, shade1);         // top
-      // Edge dither (lighter pixels on top/right = light source from right)
-      for (let dx = 0; dx < tw-4; dx += 2) P(ctx, tx+2+dx, ty+th/2, shade2);
-      for (let dy = 0; dy < th/2; dy += 2) P(ctx, tx+tw-5, ty+th/4+dy, shade2);
-      // Shadow pixels (left/bottom edge)
-      for (let dy = 0; dy < th/2; dy += 2) P(ctx, tx, ty+th/2+dy, C.BLACK);
-    }
-
-    // Far trees (darkest, no detail)
-    [[2,40,16,55],[20,30,14,65],[35,44,12,52],[50,38,16,58],[65,42,14,55],[80,35,16,62],[95,44,14,52],[110,38,16,58]].forEach(
-      ([tx,ty,tw,th]) => drawTree(tx, ty, tw, th, C.D3, C.D2)
-    );
-    // Mid trees
-    [[0,50,20,65],[22,45,18,68],[45,52,20,62],[68,48,22,65],[90,52,20,62],[112,50,18,62]].forEach(
-      ([tx,ty,tw,th]) => drawTree(tx, ty, tw, th, C.D2, C.D1)
-    );
-    // Foreground trees — darkest but tallest (silhouettes)
-    [[0,25,24,80],[30,20,20,90],[58,28,22,82],[82,22,24,88],[110,26,22,84]].forEach(
-      ([tx,ty,tw,th]) => drawTree(tx, ty, tw, th, C.D3, C.D2)
-    );
-
-    // Fog — dithered strips
-    for (let x = 0; x < W; x += 2) {
-      ctx.globalAlpha = 0.25; P(ctx, x, 93, C.MIST);
-      ctx.globalAlpha = 0.15; P(ctx, x+1, 90, C.MIST);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    drawBase();
-
-    // ── Eye blinks — per-eye staggered timers ──
-    const eyeSets = [[38, 68, 2800], [72, 62, 3400], [55, 78, 3100]];
-    eyeSets.forEach(([ex, ey, period]) => {
-      const phase = (t % period) / period;
-      const open = phase < 0.88;
-      // Eye socket (dark recess)
-      B(ctx, ex - 1, ey - 1, 5, 4, C.D3);
-      if (open) {
-        // Pupil — bright with ember iris
-        P(ctx, ex, ey, C.E3);     // iris L
-        P(ctx, ex+1, ey, C.E4);   // iris L bright
-        P(ctx, ex+3, ey, C.E3);   // iris R
-        P(ctx, ex+4, ey, C.E4);   // iris R bright
-        P(ctx, ex, ey+1, C.E2);
-        P(ctx, ex+3, ey+1, C.E2);
-        // Pupil dark center
-        P(ctx, ex+1, ey+1, C.BLACK);
-        P(ctx, ex+4, ey+1, C.BLACK);
-      } else {
-        // Closed — just a line
-        B(ctx, ex, ey + 1, 5, 1, C.D2);
-      }
-    });
-
-    // Fog drift
-    const fogOff = Math.round(Math.sin(t * 0.0006) * 8);
-    for (let x = 0; x < W; x += 3) {
-      ctx.globalAlpha = 0.18;
-      P(ctx, (x + fogOff + W) % W, 95, C.LIGHT);
-    }
-    ctx.globalAlpha = 1;
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Forgotten Crypt ─────────────────────────────────────────
-function drawCrypt(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function drawBase() {
-    B(ctx, 0, 0, W, H, C.BLACK);
-    // ── Stone wall (top 80px) ──
-    // Main wall blocks with shading
-    for (let row = 0; row < 5; row++) {
-      const ry = row * 16;
-      const offset = row % 2 === 0 ? 0 : 8;
-      B(ctx, 0, ry, W, 16, C.D2); // wall fill
-      // Mortar lines
-      B(ctx, 0, ry, W, 1, C.D3);   // horizontal mortar
-      // Individual stone blocks
-      for (let col = offset; col < W + 16; col += 22) {
-        P(ctx, col % W, ry + 2, C.D1);   // top-left highlight
-        P(ctx, col % W, ry + 14, C.D3);  // bottom shadow
-        if (col < W) { B(ctx, col, ry + 1, 1, 14, C.D3); } // vertical mortar
-        // Stone face shading — lighter center
-        if (col + 2 < W) B(ctx, col + 2, ry + 2, Math.min(18, W - col - 2), 12, C.MID);
-        if (col + 3 < W) B(ctx, col + 3, ry + 3, Math.min(16, W - col - 3), 10, C.D2);
-      }
-    }
-    // ── Floor ──
-    B(ctx, 0, 80, W, 48, C.D3);
-    // Flagstone tiles
-    const flags = [[2,82,30,14],[34,84,28,12],[64,82,32,14],[0,98,26,14],[28,100,36,12],[66,98,30,14],[98,82,28,14],[98,98,28,14]];
-    flags.forEach(([fx,fy,fw,fh]) => {
-      B(ctx, fx, fy, fw, fh, C.D2);
-      P(ctx, fx, fy, C.D1);             // top-left highlight
-      B(ctx, fx, fy, fw, 1, C.D1);      // top edge
-      B(ctx, fx, fy+fh-1, fw, 1, C.BLACK); // bottom shadow
-      B(ctx, fx+fw-1, fy, 1, fh, C.BLACK); // right shadow
-    });
-
-    // ── Coffin ──
-    B(ctx, 38, 52, 52, 32, C.D3);   // coffin shadow
-    B(ctx, 36, 50, 52, 32, C.D2);   // coffin body
-    B(ctx, 36, 50, 52, 3, C.D1);    // lid highlight
-    B(ctx, 36, 50, 2, 32, C.D1);    // left edge highlight
-    B(ctx, 86, 52, 2, 30, C.BLACK); // right shadow
-    // Lid seam
-    B(ctx, 37, 56, 50, 1, C.D3);
-    // Cross inlay
-    B(ctx, 59, 58, 6, 18, C.G2);    // vertical
-    B(ctx, 54, 63, 16, 6, C.G2);    // horizontal
-    // Cross highlight
-    B(ctx, 59, 58, 1, 18, C.G3);
-    B(ctx, 54, 63, 16, 1, C.G3);
-    // Cross center jewel
-    B(ctx, 61, 65, 2, 2, C.G4);
-
-    // ── Water stain ──
-    B(ctx, 18, 16, 6, 2, C.D3);
-
-    // Candles (static bodies)
-    [[14, 60],[110, 60]].forEach(([cx, cy]) => {
-      B(ctx, cx, cy, 5, 16, C.LIGHT);   // wax body
-      B(ctx, cx, cy, 1, 16, C.WHITE);   // left highlight
-      B(ctx, cx+4, cy, 1, 16, C.MIST);  // right shadow
-      B(ctx, cx, cy+15, 5, 1, C.MIST);  // base
-    });
-  }
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    drawBase();
-
-    // ── Candle flames ──
-    [[14, 60],[110, 60]].forEach(([cx, cy], i) => {
-      const fh = 5 + Math.round(Math.sin(t * 0.009 + i * 1.4) * 1.5);
-      const fs = Math.round(Math.sin(t * 0.013 + i) * 1);
-      const fy = cy - fh;
-      // Flame — 3 layers
-      B(ctx, cx - 1 + fs, fy, 7, fh, C.E3);      // outer
-      B(ctx, cx + fs, fy + 1, 5, fh - 1, C.E4);  // mid
-      B(ctx, cx + 1 + fs, fy + 2, 3, fh - 2, C.WHITE); // core
-      // Glow pixels
-      ctx.globalAlpha = 0.4 + Math.sin(t * 0.01 + i) * 0.15;
-      [[cx-2,fy+2],[cx+7,fy+2],[cx+2,fy-2],[cx-2,fy+4],[cx+7,fy+4]].forEach(([gx,gy])=>P(ctx,gx,gy,C.E3));
-      ctx.globalAlpha = 1;
-    });
-
-    // ── Water drip ──
-    const dy = Math.round((t * 0.035) % 26);
-    if (dy < 22) {
-      B(ctx, 20, 18 + dy, 2, 3, C.MIST);    // drip body
-      P(ctx, 20, 18 + dy, C.LIGHT);          // highlight
-    }
-    // Drip splash at floor
-    if (dy > 20) { ctx.globalAlpha = (22 - dy + 4) / 6; B(ctx, 18, 44, 6, 1, C.MIST); ctx.globalAlpha = 1; }
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Enemy encounter ─────────────────────────────────────────
-// Wraith: defined by exact pixel positions for 8-bit character feel
-function drawEnemy(canvas, name) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    B(ctx, 0, 0, W, H, C.BLACK);
-
-    // ── Danger vignette (dithered radial) ──
-    const pulse = (Math.sin(t * 0.004) + 1) * 0.5;
-    for (let y = 0; y < H; y += 2) {
-      for (let x = 0; x < W; x += 2) {
-        const dist = Math.sqrt((x-64)*(x-64) + (y-64)*(y-64));
-        if (dist > 55 && Math.random() < (dist - 55) / 80 * (0.4 + pulse * 0.4)) {
-          P(ctx, x, y, C.R2);
-        }
-      }
-    }
-
-    // ── Ground shadow (ellipse via layered rectangles) ──
-    B(ctx, 44, 114, 40, 4, C.D3);
-    B(ctx, 48, 116, 32, 4, C.D3);
-
-    // ── Wraith body — breathe via Y offset ──
-    const bY = Math.round(Math.sin(t * 0.0018) * 3);
-
-    // Robe/cloak — wide triangular shape narrowing to head
-    // Drawn bottom-up: each row is 1px narrower for cloak effect
-    for (let ry = 0; ry < 52; ry++) {
-      const rowW = Math.max(2, 38 - ry * 0.5);
-      const rowX = 64 - rowW / 2;
-      const shade = ry > 40 ? C.D3 : ry > 20 ? C.D2 : C.D1;
-      B(ctx, Math.round(rowX), 72 + bY - ry, Math.round(rowW), 1, shade);
-    }
-    // Cloak highlight pixels (light from upper-right)
-    for (let ry = 0; ry < 40; ry += 2) {
-      P(ctx, Math.round(64 + (38 - ry * 0.5) / 2) - 1, 72 + bY - ry, C.D1);
-    }
-
-    // Head / hood
-    B(ctx, 56, 30 + bY, 16, 16, C.D2);   // head block
-    B(ctx, 55, 32 + bY, 18, 12, C.D2);   // wider middle
-    B(ctx, 56, 30 + bY, 1, 16, C.D1);    // left highlight
-    B(ctx, 70, 31 + bY, 1, 14, C.D3);    // right shadow
-    // Hood shadow over face
-    B(ctx, 58, 30 + bY, 12, 5, C.D3);
-    B(ctx, 59, 31 + bY, 10, 3, C.BLACK); // deep hood darkness
-
-    // Eyes — blink on timer
-    const blink = (t % 3200) / 3200;
-    const eyeH = blink > 0.9 ? 1 : 3;
-    // Left eye
-    B(ctx, 59, 37 + bY, 4, eyeH, C.E3);
-    if (eyeH > 1) {
-      P(ctx, 60, 37 + bY, C.E4);
-      P(ctx, 61, 38 + bY, C.WHITE); // glint
-    }
-    // Right eye
-    B(ctx, 65, 37 + bY, 4, eyeH, C.E3);
-    if (eyeH > 1) {
-      P(ctx, 66, 37 + bY, C.E4);
-      P(ctx, 67, 38 + bY, C.WHITE);
-    }
-
-    // Arms — reaching forward
-    const armSway = Math.round(Math.sin(t * 0.0015) * 2);
-    // Left arm
-    B(ctx, 38 + armSway, 52 + bY, 16, 5, C.D2);
-    B(ctx, 38 + armSway, 52 + bY, 1, 5, C.D1);
-    // Left claws (3 pixels downward)
-    [0, 4, 8].forEach(dx => B(ctx, 36 + armSway + dx, 56 + bY, 2, 5, C.LIGHT));
-    // Right arm
-    B(ctx, 74 - armSway, 52 + bY, 16, 5, C.D2);
-    B(ctx, 89 - armSway, 52 + bY, 1, 5, C.D1);
-    [0, 4, 8].forEach(dx => B(ctx, 82 - armSway + dx, 56 + bY, 2, 5, C.LIGHT));
-
-    // Rib bones (peeking through cloak)
-    [0,1,2,3].forEach(r => {
-      ctx.globalAlpha = 0.4;
-      B(ctx, 55, 60 + bY + r * 6, 18, 1, C.MIST);
-      ctx.globalAlpha = 1;
-    });
-
-    // Name label (pixel font style — small and crisp)
-    ctx.fillStyle = C.E3;
-    ctx.font = 'bold 8px "JetBrains Mono"';
-    ctx.textAlign = 'center';
-    ctx.fillText((name || 'WRAITH').toUpperCase(), 64, 126);
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Sage's Tower ────────────────────────────────────────────
-function drawSage(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function drawBase() {
-    B(ctx, 0, 0, W, H, C.D3);
-    // Bookshelf background — tightly packed book spines
-    const bookColors = [C.E2, C.G2, C.D2, C.MID, C.E1, C.G1, C.D1, C.R2, C.G2, C.E2, C.D3];
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 10; col++) {
-        const bc = bookColors[(col + row * 3) % bookColors.length];
-        B(ctx, 2 + col * 13, 8 + row * 18, 11, 16, bc);
-        P(ctx, 2 + col * 13, 8 + row * 18, C.D1); // left highlight
-        B(ctx, 2 + col * 13 + 10, 8 + row * 18, 1, 16, C.BLACK); // right shadow
-        B(ctx, 2 + col * 13, 8 + row * 18, 11, 1, C.D1); // top
-      }
-      // Shelf plank
-      B(ctx, 0, 24 + row * 18, W, 3, C.D2);
-      B(ctx, 0, 24 + row * 18, W, 1, C.D1);
-    }
-    // Floor
-    B(ctx, 0, 100, W, 28, C.D3);
-    for (let x = 0; x < W; x += 20) {
-      B(ctx, x, 100, 19, 28, C.D2);
-      B(ctx, x, 100, 1, 28, C.D1);
-    }
-    B(ctx, 0, 100, W, 1, C.D2);
-  }
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    drawBase();
-
-    const bY = Math.round(Math.sin(t * 0.0018) * 2);
-
-    // ── Robe ──
-    B(ctx, 44, 68 + bY, 40, 36, C.MIST);     // robe body
-    B(ctx, 44, 68 + bY, 2, 36, C.LIGHT);      // left highlight
-    B(ctx, 82, 69 + bY, 2, 35, C.D2);         // right shadow
-    // Robe detail lines
-    B(ctx, 50, 78 + bY, 1, 20, C.D2);
-    B(ctx, 60, 76 + bY, 1, 22, C.D2);
-    // Sleeves
-    B(ctx, 32, 75 + bY, 14, 8, C.MIST);
-    B(ctx, 82, 75 + bY, 14, 8, C.MIST);
-    B(ctx, 32, 75 + bY, 1, 8, C.LIGHT);
-    B(ctx, 94, 75 + bY, 1, 8, C.D2);
-    // Hands
-    B(ctx, 28, 81 + bY, 8, 5, C.D1);
-    B(ctx, 92, 81 + bY, 8, 5, C.D1);
-
-    // ── Head ──
-    B(ctx, 52, 46 + bY, 24, 24, C.LIGHT);     // face
-    B(ctx, 52, 46 + bY, 2, 24, C.WHITE);       // left highlight
-    B(ctx, 74, 47 + bY, 2, 23, C.MID);         // right shadow
-    // Beard
-    B(ctx, 52, 62 + bY, 24, 10, C.WHITE);
-    B(ctx, 54, 70 + bY, 20, 6, C.LIGHT);
-    // Eyebrows
-    B(ctx, 55, 50 + bY, 6, 2, C.D2);
-    B(ctx, 67, 50 + bY, 6, 2, C.D2);
-    // Eyes — blink
-    const bl = (t % 4200) / 4200;
-    const eH = bl > 0.92 ? 1 : 4;
-    B(ctx, 56, 54 + bY, 5, eH, C.BLACK);
-    B(ctx, 67, 54 + bY, 5, eH, C.BLACK);
-    if (eH > 1) {
-      P(ctx, 58, 55 + bY, C.E3); P(ctx, 69, 55 + bY, C.E3); // iris
-      P(ctx, 58, 54 + bY, C.WHITE); P(ctx, 69, 54 + bY, C.WHITE); // glint
-    }
-
-    // ── Hat ──
-    B(ctx, 48, 30 + bY, 32, 18, C.D3);        // brim
-    B(ctx, 48, 30 + bY, 32, 2, C.D2);          // brim top edge
-    B(ctx, 54, 6 + bY, 20, 26, C.D3);          // cone
-    B(ctx, 54, 6 + bY, 2, 26, C.D2);           // cone highlight
-    B(ctx, 72, 7 + bY, 2, 25, C.BLACK);        // cone shadow
-
-    // ── Staff + orb ──
-    const sw = Math.round(Math.sin(t * 0.0012) * 1.5);
-    B(ctx, 95 + sw, 50, 3, 56, C.G3);
-    P(ctx, 95 + sw, 50, C.G4);
-    B(ctx, 95 + sw, 50, 1, 56, C.G4);
-    // Orb
-    const orbP = (Math.sin(t * 0.003) + 1) * 0.5;
-    B(ctx, 90 + sw, 42, 12, 12, C.E2);
-    B(ctx, 91 + sw, 41, 10, 14, C.E3);
-    B(ctx, 93 + sw, 42, 6, 12, C.E4);
-    B(ctx, 94 + sw, 43, 4, 4, C.WHITE);        // orb highlight
-    // Glow pixels
-    ctx.globalAlpha = 0.35 + orbP * 0.3;
-    [[88+sw,44],[88+sw,48],[104+sw,44],[104+sw,48],[96+sw,38],[96+sw,56]].forEach(([gx,gy])=>P(ctx,gx,gy,C.E3));
-    ctx.globalAlpha = 1;
-
-    // Typing dots (speech indicator)
-    const dp = Math.floor(t / 380) % 3;
-    [0, 8, 16].forEach((dx, i) => {
-      ctx.globalAlpha = dp >= i ? 0.9 : 0.2;
-      B(ctx, 18 + dx, 12, 4, 4, C.WHITE);
-    });
-    ctx.globalAlpha = 1;
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Sorcerer's Tower ────────────────────────────────────────
-function drawTower(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function drawBase() {
-    B(ctx, 0, 0, W, H, C.BLACK);
-    // Stormy sky — dithered
-    for (let y = 0; y < 80; y++) {
-      for (let x = (y * 3) % 3; x < W; x += 3) {
-        if (Math.sin(x * 0.3 + y * 0.2) > 0.6) P(ctx, x, y, C.D3);
-      }
-    }
-    // Ground / terrain
-    B(ctx, 0, 96, W, 32, C.D3);
-    B(ctx, 0, 94, W, 4, C.D2);
-    // Dead tree L
-    B(ctx, 4, 50, 3, 48, C.D2); B(ctx, 4, 50, 1, 48, C.D1);
-    B(ctx, 2, 58, 8, 2, C.D2); B(ctx, 7, 65, 10, 2, C.D2);
-    // Dead tree R
-    B(ctx, 120, 55, 3, 44, C.D2); B(ctx, 120, 55, 1, 44, C.D1);
-    B(ctx, 115, 63, 10, 2, C.D2); B(ctx, 113, 72, 12, 2, C.D2);
-
-    // ── Tower body ──
-    B(ctx, 46, 16, 36, 90, C.D2);        // main structure
-    B(ctx, 46, 16, 4, 90, C.D1);         // left face highlight
-    B(ctx, 78, 18, 4, 88, C.D3);         // right face shadow
-    B(ctx, 80, 20, 2, 86, C.BLACK);      // far right shadow
-
-    // Stone blocks — alternating course
-    for (let row = 0; row < 10; row++) {
-      const ry = 18 + row * 9, off = row % 2 === 0 ? 0 : 6;
-      B(ctx, 46, ry, 36, 1, C.D3);       // mortar
-      for (let col = off; col < 34; col += 12) {
-        P(ctx, 48 + col, ry + 1, C.D1);  // stone highlight
-        P(ctx, 48 + col + 10, ry + 7, C.D3); // stone shadow
-      }
-    }
-
-    // Battlements
-    [46, 54, 62, 70, 76].forEach((bx, i) => {
-      if (i % 2 === 0) {
-        B(ctx, bx, 8, 6, 10, C.D2);
-        B(ctx, bx, 8, 1, 10, C.D1);
-        B(ctx, bx + 5, 9, 1, 9, C.D3);
-      }
-    });
-    B(ctx, 44, 16, 40, 2, C.D1); // parapet top
-
-    // Door (arched)
-    B(ctx, 56, 88, 16, 18, C.BLACK);
-    B(ctx, 57, 84, 14, 6, C.BLACK); // arch
-    B(ctx, 55, 88, 2, 18, C.D3);   // left jamb
-    B(ctx, 71, 88, 2, 18, C.D3);   // right jamb
-    B(ctx, 55, 88, 18, 1, C.D3);   // door step
-  }
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    drawBase();
-
-    // ── Window glow — pulsing ──
-    const wP = (Math.sin(t * 0.004) + 1) * 0.5;
-    // Window frame
-    B(ctx, 57, 48, 14, 18, C.BLACK);
-    B(ctx, 56, 47, 16, 2, C.D2);
-    B(ctx, 56, 47, 2, 20, C.D2);
-    B(ctx, 70, 47, 2, 20, C.D2);
-    B(ctx, 56, 65, 16, 2, C.D2);
-    // Glow fill
-    const wShade = wP > 0.7 ? C.E4 : wP > 0.4 ? C.E3 : C.E2;
-    B(ctx, 57, 48, 14, 18, wShade);
-    // Glow pixels bleeding out
-    ctx.globalAlpha = 0.3 + wP * 0.35;
-    [[54,50],[54,56],[54,62],[72,50],[72,56],[72,62],[60,45],[66,45]].forEach(([gx,gy])=>P(ctx,gx,gy,C.E3));
-    ctx.globalAlpha = 1;
-
-    // ── Orb at top ──
-    const oP = (Math.sin(t * 0.003 + 0.5) + 1) * 0.5;
-    B(ctx, 57, 2, 14, 10, C.E1);
-    B(ctx, 58, 1, 12, 12, C.E2);
-    B(ctx, 59, 2, 10, 10, C.E3);
-    if (oP > 0.5) B(ctx, 61, 3, 6, 6, C.E4);
-    if (oP > 0.8) B(ctx, 62, 4, 4, 4, C.WHITE);
-    // Orb glow ring
-    ctx.globalAlpha = 0.2 + oP * 0.3;
-    [[54,4],[54,8],[72,4],[72,8],[62,0],[64,14]].forEach(([gx,gy])=>P(ctx,gx,gy,C.E3));
-    ctx.globalAlpha = 1;
-
-    // Lightning flicker
-    if (Math.random() > 0.985) {
-      ctx.globalAlpha = 0.08;
-      B(ctx, 0, 0, W, H, C.LIGHT);
-      ctx.globalAlpha = 1;
-    }
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Victory ────────────────────────────────────────────────
-function drawVictory(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    B(ctx, 0, 0, W, H, C.BLACK);
-
-    // Radiating light rays — dithered
-    const pulse = (Math.sin(t * 0.002) + 1) * 0.5;
-    for (let angle = 0; angle < 12; angle++) {
-      const a = angle * Math.PI / 6 + t * 0.0003;
-      ctx.globalAlpha = 0.05 + pulse * 0.07;
-      ctx.save(); ctx.translate(64, 64);
-      ctx.rotate(a);
-      B(ctx, -3, -90, 6, 90, C.G3);
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-
-    // ── Crown ──
-    // Base band
-    B(ctx, 36, 72, 56, 20, C.G2);
-    B(ctx, 36, 72, 56, 2, C.G3);   // top highlight
-    B(ctx, 36, 90, 56, 2, C.G1);   // bottom shadow
-    // Crown points (5 peaks)
-    const peaks = [[36,72],[46,52],[56,44],[64,40],[72,44],[82,52],[92,72]];
-    // Fill between peaks
-    for (let p = 0; p < peaks.length - 1; p++) {
-      const [x1,y1] = peaks[p], [x2,y2] = peaks[p+1];
-      const minY = Math.min(y1, y2);
-      B(ctx, x1, minY, x2 - x1, 72 - minY + 2, C.G2);
-    }
-    // Peak details
-    peaks.forEach(([px, py]) => {
-      B(ctx, px, py, 10, 4, C.G3);
-      P(ctx, px, py, C.G4);
-    });
-    // Jewels in crown
-    [[48, 77],[60, 77],[72, 77],[84, 77]].forEach(([jx,jy], i) => {
-      const jC = [C.R3, C.E3, C.G3, C.MIST][i];
-      B(ctx, jx, jy, 5, 8, jC);
-      P(ctx, jx, jy, C.WHITE);
-      B(ctx, jx+4, jy+1, 1, 7, C.BLACK);
-    });
-    // Crown highlight
-    B(ctx, 36, 72, 56, 1, C.G4);
-
-    // ── Glow ──
-    ctx.globalAlpha = 0.15 + pulse * 0.15;
-    B(ctx, 20, 40, 88, 60, C.G2);
-    ctx.globalAlpha = 1;
-
-    // Sparkles
-    [[30,35],[98,35],[20,85],[108,85],[64,18]].forEach(([sx,sy],i) => {
-      const sp = Math.sin(t * 0.005 + i * 1.4);
-      ctx.globalAlpha = sp > 0 ? sp * 0.9 : 0;
-      B(ctx, sx, sy, 3, 3, C.G4);
-      P(ctx, sx+1, sy-1, C.WHITE);
-      P(ctx, sx+1, sy+3, C.WHITE);
-      P(ctx, sx-1, sy+1, C.WHITE);
-      P(ctx, sx+3, sy+1, C.WHITE);
-    });
-    ctx.globalAlpha = 1;
-
-    ctx.fillStyle = C.G4;
-    ctx.font = 'bold 8px "JetBrains Mono"';
-    ctx.textAlign = 'center';
-    ctx.fillText('VICTORY', 64, 122);
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Game Over ──────────────────────────────────────────────
-function drawGameOver(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    B(ctx, 0, 0, W, H, C.BLACK);
-
-    const pulse = (Math.sin(t * 0.003) + 1) * 0.5;
-    ctx.globalAlpha = 0.1 + pulse * 0.12;
-    B(ctx, 0, 0, W, H, C.R2);
-    ctx.globalAlpha = 1;
-
-    const bY = Math.round(Math.sin(t * 0.001) * 2);
-
-    // ── Skull (full 8-bit sprite, pixel-precise) ──
-    // Cranium
-    B(ctx, 44, 18 + bY, 40, 38, C.LIGHT);    // main head
-    B(ctx, 42, 24 + bY, 44, 28, C.LIGHT);    // wider mid
-    B(ctx, 44, 16 + bY, 40, 4, C.MIST);      // top curve
-    // Head highlight (top-left)
-    B(ctx, 44, 18 + bY, 2, 20, C.WHITE);
-    B(ctx, 46, 16 + bY, 10, 2, C.WHITE);
-    // Head shadow (bottom-right)
-    B(ctx, 80, 22 + bY, 4, 30, C.MIST);
-    B(ctx, 46, 52 + bY, 32, 4, C.MIST);
-
-    // Eye sockets
-    B(ctx, 50, 28 + bY, 14, 16, C.BLACK);    // left socket
-    B(ctx, 52, 26 + bY, 10, 20, C.BLACK);
-    B(ctx, 64, 28 + bY, 14, 16, C.BLACK);    // right socket
-    B(ctx, 66, 26 + bY, 10, 20, C.BLACK);
-    // Socket rims (bone depth)
-    B(ctx, 50, 28 + bY, 14, 2, C.MIST);
-    B(ctx, 64, 28 + bY, 14, 2, C.MIST);
-    B(ctx, 50, 28 + bY, 2, 16, C.MIST);
-    B(ctx, 64, 28 + bY, 2, 16, C.MIST);
-
-    // Eye glow — pulsing red
-    ctx.globalAlpha = 0.5 + pulse * 0.45;
-    B(ctx, 52, 30 + bY, 10, 12, C.R3);
-    B(ctx, 53, 31 + bY, 8, 10, C.R4);
-    B(ctx, 66, 30 + bY, 10, 12, C.R3);
-    B(ctx, 67, 31 + bY, 8, 10, C.R4);
-    ctx.globalAlpha = 1;
-
-    // Nose cavity
-    B(ctx, 60, 44 + bY, 8, 8, C.BLACK);
-    B(ctx, 61, 43 + bY, 6, 2, C.MIST);
-
-    // Jaw (lower skull)
-    B(ctx, 46, 54 + bY, 36, 18, C.LIGHT);
-    B(ctx, 44, 56 + bY, 40, 14, C.LIGHT);
-    // Jaw shadow
-    B(ctx, 44, 68 + bY, 40, 4, C.MIST);
-    // Jaw highlight
-    B(ctx, 44, 56 + bY, 2, 14, C.WHITE);
-
-    // Teeth (5 teeth, pixel-perfect)
-    for (let i = 0; i < 5; i++) {
-      const tx = 47 + i * 7;
-      B(ctx, tx, 55 + bY, 5, 10, C.BLACK);      // gap
-      B(ctx, tx + 1, 55 + bY, 4, 9, C.WHITE);   // tooth face
-      P(ctx, tx + 1, 55 + bY, C.LIGHT);          // tooth shadow top
-      B(ctx, tx + 4, 56 + bY, 1, 8, C.MIST);    // tooth right shadow
-    }
-
-    // Crack
-    ctx.fillStyle = C.D1;
-    ctx.fillRect(64, 18 + bY, 1, 6);
-    ctx.fillRect(63, 24 + bY, 1, 4);
-    ctx.fillRect(64, 28 + bY, 1, 3);
-
-    ctx.fillStyle = C.R3;
-    ctx.font = 'bold 8px "JetBrains Mono"';
-    ctx.textAlign = 'center';
-    ctx.fillText('CONSUMED BY DARK', 64, 122);
-
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-
-// ── SCENE: Darkness (torch death) ─────────────────────────────────
-function drawDarkness(canvas) {
-  stopScene();
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  const W = 128, H = 128;
-
-  function frame(t) {
-    ctx.clearRect(0, 0, W, H);
-    B(ctx, 0, 0, W, H, C.BLACK);
-    // Faint dying ember glow at center, fading
-    const fade = Math.max(0, 1 - (t / 3000));
-    ctx.globalAlpha = fade * 0.4;
-    B(ctx, 52, 52, 24, 24, C.E1);
-    B(ctx, 56, 56, 16, 16, C.E2);
-    B(ctx, 60, 60, 8, 8, C.E3);
-    ctx.globalAlpha = 1;
-    window._af = requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-}
-</script>
-
-<!-- ================================================================
-     GAME ENGINE
-     ================================================================ -->
-<script>
-// ── CONSTANTS ──────────────────────────────────────────────────────
-const MAX_TORCHES = 8;  // max torches the player can hold
-const START_TORCHES = 5;
-
-// ── STATE ──────────────────────────────────────────────────────────
-// All game state in one object. DOM functions are pure readers.
-const state = {
-  player: {
-    name: 'Wanderer',
-    hp: 30, maxHp: 30,
-    atk: 5, def: 2,
-    inventory: [],
-    explored: new Set(),
-    torches: START_TORCHES,  // ← core resource
-    decisions: 0,            // total decisions made
-  },
-  location: null,
-  phase: 'intro',
-  apiKey: null,
-  enemy: null,
-  flags: {},
-};
-
-// ── WORLD ──────────────────────────────────────────────────────────
-// Each choice has a hidden `lucky` flag. If lucky, player gains torches.
-// Players never see this flag — the consequence is revealed after choice.
-const LOCATIONS = {
-  gate: {
-    id: 'gate', name: 'Ruined Gate', draw: drawRuinedGate,
-    label: '🏚️ the ruined gate',
-    fallbackDesc: 'Crumbling stone towers flank a half-sunken portcullis. Torchlight flickers without wind. This was once the grand entrance to the vale — now it is a wound in the world.',
-    encounters: ['wisp'], items: [], exits: ['forest', 'tower'],
-  },
-  forest: {
-    id: 'forest', name: 'The Emberwood', draw: drawForest,
-    label: '🌲 the emberwood',
-    fallbackDesc: 'Skeletal trees claw skyward. Something watches from between trunks — golden eyes that vanish when you look directly. The fog here smells of copper and old rain.',
-    encounters: ['shade', 'wolf'], items: ['Ember Shard', 'Tattered Map'], exits: ['gate', 'crypt'],
-  },
-  crypt: {
-    id: 'crypt', name: 'Forgotten Crypt', draw: drawCrypt,
-    label: '⚰️ forgotten crypt',
-    fallbackDesc: 'Water drips from vaulted ceilings onto coffins older than memory. A candle burns at the far end, though no one has been here for decades. The air is still and cold, like held breath.',
-    encounters: ['revenant'], items: ['Iron Key', 'Old Tome'], exits: ['forest', 'sage'],
-  },
-  sage: {
-    id: 'sage', name: "Sage's Tower", draw: drawSage,
-    label: "🧙 the sage's tower",
-    fallbackDesc: 'Shelves of crumbling books line every wall. A robed figure turns, staff in hand, eyes like burning coals. "You carry the scent of the gate. You have come far."',
-    encounters: [], items: ['Healing Tonic'], exits: ['crypt', 'tower'], isNPC: true,
-  },
-  tower: {
-    id: 'tower', name: "Sorcerer's Tower", draw: drawTower,
-    label: "🗼 sorcerer's tower",
-    fallbackDesc: 'A spire of black stone juts from earth like a broken bone. The door is sealed with old magic — but the Iron Key trembles in your pocket. Whatever began at the gate ends here.',
-    encounters: ['sorcerer'], items: [], exits: ['sage'], isFinal: true,
-  },
-};
-
-const ENEMIES = {
-  wisp:     { name: 'Fell Wisp',       hp: 8,  atk: 3, def: 0, reward: null,           fb: 'A ball of pale light drifts toward you, humming with malice.' },
-  shade:    { name: 'Forest Shade',    hp: 12, atk: 4, def: 1, reward: 'Shadow Cloak', fb: 'A shadow peels itself from a tree and takes the shape of something with teeth.' },
-  wolf:     { name: 'Ember Wolf',      hp: 10, atk: 5, def: 0, reward: null,           fb: 'A wolf with ember-orange eyes circles you, ribs showing, lips peeled back.' },
-  revenant: { name: 'Crypt Revenant',  hp: 16, atk: 6, def: 2, reward: 'Bone Amulet', fb: 'The stone lid of a coffin slides aside. Something inside has been waiting.' },
-  sorcerer: { name: 'Hollow Sorcerer', hp: 25, atk: 8, def: 3, reward: 'The Ember Crown', fb: 'He turns from the window. His eyes are hollow sockets filled with dim orange flame. "You should not have come." He raises his staff.' },
-};
-
-const ITEM_FX = {
-  'Healing Tonic': { hp: 12, msg: 'The tonic burns your throat but warmth floods your body. +12 HP.' },
-  'Bone Amulet':   { def: 2,  msg: 'The amulet hums faintly. You feel hardened. +2 DEF.' },
-  'Shadow Cloak':  { def: 1,  msg: 'The cloak settles on your shoulders. +1 DEF.' },
-};
-
-// ── DOM HELPERS ────────────────────────────────────────────────────
-const $e = id => document.getElementById(id);
-
-function log(text, type = 'normal') {
-  const d = document.createElement('div');
-  d.className = `narrative-block ${type}`;
-  d.textContent = text;
-  $e('main').appendChild(d);
-  $e('main').scrollTop = $e('main').scrollHeight;
-  if (type === 'system') {
-    const hr = document.createElement('hr'); hr.className = 'divider';
-    $e('main').appendChild(hr);
-  }
-}
-
-// ── TORCH SYSTEM ───────────────────────────────────────────────────
-// spendTorch(): called before every player decision.
-// Returns false if player is out of torches (triggers darkness death).
-function spendTorch() {
-  state.player.decisions++;
-  state.player.torches = Math.max(0, state.player.torches - 1);
-  updateStats();
-
-  if (state.player.torches === 0) {
-    // Brief delay so the choice text renders first
-    setTimeout(darknessKill, 600);
-    return false;
-  }
-
-  // Low torch warning
-  if (state.player.torches <= 2) {
-    $e('sidebar').classList.add('low-torch');
-    log(`Your last torches flicker. ${state.player.torches} remaining.`, 'warning');
-  } else {
-    $e('sidebar').classList.remove('low-torch');
-  }
-  return true;
-}
-
-// gainTorches(): called when player makes a "lucky" choice.
-function gainTorches(amount) {
-  const gained = Math.min(amount, MAX_TORCHES - state.player.torches);
-  if (gained <= 0) return;
-  state.player.torches += gained;
-  log(`Your torch catches something on the wall — a bracket of fresh torches. +${gained} 🔥`, 'torch');
-  updateStats();
-}
-
-function darknessKill() {
-  state.phase = 'end';
-  drawDarkness($e('scene-canvas'));
-  $e('location-name').textContent = 'THE DARK';
-  $e('sidebar').classList.remove('low-torch');
-  $e('darkness-overlay').classList.add('consuming');
-  disableChoices();
-  setTimeout(() => {
-    log('Your last torch dies. The darkness is total. You are not alone in it.', 'warning');
-    log('The thing that has been following you — the thing that has always been waiting — finally reaches you.', 'warning');
-    ai('The wanderer\'s last torch has gone out. They are consumed by darkness in the vale. Write a haunting 2-sentence conclusion.',
-       'In the dark, you understand at last that the vale was not a place to be explored — it was a trap to be fallen into. Your name joins the list of the consumed.')
-    .then(() => {
-      setChoices([{ label: 'Begin again', lucky: false, action: () => restartGame() }]);
-    });
-  }, 2000);
-}
-
-// ── CHOICE SYSTEM WITH TORCH COST ─────────────────────────────────
-// Every choice wrapper: deducts 1 torch, checks for lucky reward,
-// then executes the actual action.
-function makeChoice(choice) {
-  disableChoices();
-  const alive = spendTorch();
-  if (!alive) return; // darkness takes over
-
-  // Lucky choices grant torches (player doesn't know which)
-  if (choice.lucky) {
-    const reward = 2 + Math.floor(Math.random() * 2); // 2 or 3
-    gainTorches(reward);
-  }
-
-  choice.action();
-}
-
-function setChoices(choices) {
-  state.choices = choices;
-  const el = $e('choices'); el.innerHTML = '';
-  choices.forEach((c, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'choice-btn';
-    btn.textContent = c.label;
-    btn.style.animationDelay = i * 65 + 'ms';
-    btn.onclick = () => makeChoice(c);
-    el.appendChild(btn);
-  });
-}
-
-function disableChoices() {
-  $e('choices').querySelectorAll('button').forEach(b => b.disabled = true);
-}
-
-// ── STATS RENDER ───────────────────────────────────────────────────
-function updateStats() {
-  const p = state.player;
-  $e('stat-name').textContent = p.name;
-
-  // HP
-  const hpEl = $e('stat-hp');
-  hpEl.textContent = `${p.hp}/${p.maxHp}`;
-  hpEl.className = 'val' + (p.hp <= 8 ? ' bad' : p.hp === p.maxHp ? ' good' : '');
-  const hpPct = Math.max(0, p.hp / p.maxHp * 100);
-  $e('hp-bar').style.width = hpPct + '%';
-  $e('hp-bar').style.background = hpPct < 30 ? '#8B1A1A' : hpPct < 60 ? 'var(--ember)' : 'var(--gold)';
-
-  $e('stat-atk').textContent = p.atk;
-  $e('stat-def').textContent = p.def;
-  $e('stat-decisions').textContent = p.decisions;
-  $e('stat-explored').textContent = `${p.explored.size}/5`;
-
-  // Torches
-  const torchEl = $e('stat-torches');
-  torchEl.textContent = p.torches;
-  torchEl.className = 'val' + (p.torches <= 1 ? ' bad' : p.torches <= 3 ? '' : ' good');
-  $e('torch-bar').style.width = (p.torches / MAX_TORCHES * 100) + '%';
-  $e('torch-bar').style.background = p.torches <= 1 ? '#8B1A1A' : p.torches <= 3 ? 'var(--ember)' : 'var(--gold)';
-
-  // Header torch icons (max 8 shown)
-  const iconsEl = $e('torch-icons');
-  iconsEl.innerHTML = '';
-  const displayCount = Math.min(MAX_TORCHES, 8);
-  for (let i = 0; i < displayCount; i++) {
-    const span = document.createElement('span');
-    span.className = 'torch-icon' + (i >= p.torches ? ' spent' : '');
-    span.textContent = '🔥';
-    // Stagger animation offset for organic look
-    span.style.animationDelay = (i * 150) + 'ms';
-    iconsEl.appendChild(span);
-  }
-  $e('torch-count').textContent = `${p.torches} torch${p.torches !== 1 ? 'es' : ''}`;
-
-  // Inventory
-  const invEl = $e('inventory-list'); invEl.innerHTML = '';
-  if (!p.inventory.length) {
-    invEl.innerHTML = '<div class="inv-empty">empty</div>';
-  } else {
-    p.inventory.forEach(item => {
-      const d = document.createElement('div'); d.className = 'inv-item'; d.textContent = item; invEl.appendChild(d);
-    });
-  }
-}
-
-function setScene(locKey) {
-  const loc = LOCATIONS[locKey]; if (!loc) return;
-  $e('location-name').textContent = loc.name.toUpperCase();
-  $e('scene-label').textContent = loc.label;
-  const c = $e('scene-canvas');
-  c.style.transition = 'opacity 0.25s';
-  c.style.opacity = '0';
-  setTimeout(() => { loc.draw(c); c.style.opacity = '1'; }, 260);
-}
-
-function journalEntry(text) {
-  const d = document.createElement('div');
-  d.style.cssText = 'margin-bottom:4px;';
-  d.textContent = '◌ ' + text;
-  $e('journal').appendChild(d);
-}
-
-// ── ANTHROPIC API ──────────────────────────────────────────────────
-async function ai(prompt, fallback) {
-  if (!state.apiKey) { log(fallback); return fallback; }
-  const lid = 'al' + Date.now();
-  const lEl = document.createElement('div');
-  lEl.className = 'narrative-block ai-loading'; lEl.id = lid;
-  lEl.textContent = 'The vale stirs...';
-  $e('main').appendChild(lEl); $e('main').scrollTop = $e('main').scrollHeight;
-  $e('api-status').className = 'loading'; $e('api-status').textContent = '◌ THINKING';
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-        system: `You are the narrator of "Pixel & Prose", a dark gothic text RPG. Write atmospheric descriptions in 2-4 sentences. Present tense, third-person ("the wanderer"). Tone: literary, melancholic, gothic dark fantasy. Under 100 words. No clichés.`,
-        messages: [{ role: 'user', content: prompt }],
-      })
-    });
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    const text = data.content?.map(c => c.text || '').join('') || fallback;
-    document.getElementById(lid)?.remove();
-    $e('api-status').className = 'live'; $e('api-status').textContent = '● LIVE';
-    const d = document.createElement('div'); d.className = 'narrative-block ai-generated'; d.textContent = text;
-    $e('main').appendChild(d); $e('main').scrollTop = $e('main').scrollHeight;
-    return text;
-  } catch (err) {
-    document.getElementById(lid)?.remove();
-    $e('api-status').className = 'offline'; $e('api-status').textContent = '◌ OFFLINE';
-    log(fallback); return fallback;
-  }
-}
-
-// ── GAME FLOW ──────────────────────────────────────────────────────
-function startGame() {
-  $e('main').innerHTML = '';
-  $e('journal').innerHTML = '';
-  $e('sidebar').classList.remove('low-torch');
-  $e('darkness-overlay').classList.remove('consuming');
-  setScene('gate');
-  updateStats();
-  log('PIXEL & PROSE', 'system');
-  log(`You carry ${state.player.torches} torches. Each decision burns one. The dark is patient.`, 'torch');
-  ai('Describe the wanderer arriving at the ruined gate of the vale at night for the first time. They carry only a bundle of torches and no memory of why they came.',
-     'You arrive at the Ruined Gate as night settles into the vale. The torches you carry burn without wind, without reason. You do not remember choosing to come here — only that the dark always led here.')
-  .then(() => enterLocation('gate'));
-}
-
-function enterLocation(locKey) {
-  const loc = LOCATIONS[locKey];
-  Object.assign(state, { location: locKey, phase: 'explore' });
-  state.player.explored.add(locKey);
-  updateStats(); setScene(locKey); journalEntry(loc.name);
-
-  // Build choices — each has a `lucky` flag randomly assigned
-  // The player doesn't know which choice is lucky until after they choose
-  const rawChoices = [];
-
-  if (loc.isNPC && !state.flags.sageSpoken) {
-    rawChoices.push({ label: 'Speak with the Sage', lucky: true, action: sageDialogue });
-  }
-
-  if (loc.isFinal) {
-    const hasKey = state.player.inventory.includes('Iron Key');
-    rawChoices.push(hasKey
-      ? { label: 'Use the Iron Key on the sealed door', lucky: false, action: () => startEncounter('sorcerer') }
-      : { label: 'Examine the sealed door (you need a key)', lucky: false, action: () => { log('The door resists. Deep in the lock, iron tumblers wait for their key.'); enterLocation(locKey); } }
-    );
-  }
-
-  if (loc.encounters.length && Math.random() > 0.35) {
-    const eKey = loc.encounters[Math.floor(Math.random() * loc.encounters.length)];
-    rawChoices.push({ label: 'Investigate a sound in the dark', lucky: false, action: () => startEncounter(eKey) });
-  }
-
-  loc.items.forEach(item => {
-    if (!state.player.inventory.includes(item)) {
-      rawChoices.push({ label: 'Search the shadows for anything useful', lucky: true, action: () => findItem(item, locKey) });
-    }
-  });
-
-  ['Healing Tonic'].forEach(item => {
-    if (state.player.inventory.includes(item) && state.player.hp < state.player.maxHp) {
-      rawChoices.push({ label: `Use ${item}`, lucky: false, action: () => useItem(item, locKey) });
-    }
-  });
-
-  loc.exits.forEach(exitKey => {
-    const el = LOCATIONS[exitKey];
-    // Randomly mark some travel choices as lucky
-    const isLucky = Math.random() > 0.5;
-    rawChoices.push({
-      label: `Travel to ${el.name}`,
-      lucky: isLucky,
-      action: () => ai(
-        `The wanderer leaves ${loc.name} and moves toward ${el.name}. 2 atmospheric sentences.`,
-        `You leave ${loc.name} behind. The path to ${el.name} is cold and uncertain.`
-      ).then(() => enterLocation(exitKey)),
-    });
-  });
-
-  setChoices(rawChoices);
-}
-
-function findItem(item, locKey) {
-  ai(`The wanderer searches ${LOCATIONS[locKey].name} and discovers: ${item}. 2 atmospheric sentences.`,
-     `Among the debris and shadow, you find the ${item}. You take it.`)
-  .then(() => {
-    if (!state.player.inventory.includes(item)) {
-      state.player.inventory.push(item); log(`Found: ${item}`, 'loot');
-      const fx = ITEM_FX[item];
-      if (fx && fx.def) { state.player.def += fx.def; log(fx.msg, 'loot'); }
-    }
-    updateStats(); enterLocation(locKey);
-  });
-}
-
-function useItem(item, locKey) {
-  const fx = ITEM_FX[item];
-  if (fx?.hp) { state.player.hp = Math.min(state.player.maxHp, state.player.hp + fx.hp); log(fx.msg, 'loot'); }
-  state.player.inventory = state.player.inventory.filter(i => i !== item);
-  updateStats(); enterLocation(locKey);
-}
-
-function startEncounter(eKey) {
-  const tmpl = ENEMIES[eKey]; state.enemy = { ...tmpl, currentHp: tmpl.hp };
-  state.phase = 'encounter';
-  drawEnemy($e('scene-canvas'), tmpl.name);
-  $e('location-name').textContent = 'ENCOUNTER';
-  ai(`A ${tmpl.name} confronts the wanderer in ${LOCATIONS[state.location].name}. 2 tense sentences.`, tmpl.fb)
-  .then(() => { log(`[${state.enemy.name} — HP: ${state.enemy.currentHp}/${state.enemy.hp}]`, 'system'); combatChoices(); });
-}
-
-function combatChoices() {
-  const choices = [
-    { label: `Strike hard — ATK ${state.player.atk}`, lucky: false, action: () => combatRound('strike') },
-    { label: 'Dodge and counter — safer, less damage', lucky: true, action: () => combatRound('dodge') },
-  ];
-  if (state.player.inventory.includes('Ember Shard'))
-    choices.push({ label: 'Throw the Ember Shard — fire damage', lucky: true, action: () => combatRound('ember') });
-  choices.push({ label: 'Attempt to flee into the dark', lucky: false, action: attemptFlee });
-  setChoices(choices);
-}
-
-function combatRound(action) {
-  const e = state.enemy, p = state.player;
-  let dmg = p.atk, counterAttacks = true;
-  if (action === 'dodge') { dmg = Math.floor(p.atk * 0.6); counterAttacks = Math.random() > 0.5; }
-  else if (action === 'ember') {
-    dmg = p.atk + 5;
-    p.inventory = p.inventory.filter(i => i !== 'Ember Shard');
-    log('You hurl the Ember Shard — it erupts in scorching fire!', 'combat');
-  }
-  const eHit = Math.max(1, dmg - e.def); e.currentHp -= eHit;
-  log(`You deal ${eHit} damage. (Enemy HP: ${Math.max(0, e.currentHp)}/${e.hp})`, 'combat');
-  if (e.currentHp <= 0) { combatVictory(); return; }
-  if (counterAttacks) {
-    const taken = Math.max(1, e.atk - p.def); p.hp -= taken;
-    log(`The ${e.name} strikes for ${taken} damage. (Your HP: ${p.hp}/${p.maxHp})`, 'combat');
-  } else {
-    log('You dodge the counterattack.', 'combat');
-  }
-  updateStats();
-  if (p.hp <= 0) { gameOver('hp'); return; }
-  const cv = $e('scene-canvas'); cv.style.animation = 'shake 0.4s ease'; setTimeout(() => cv.style.animation = '', 400);
-  combatChoices();
-}
-
-function combatVictory() {
-  const e = state.enemy;
-  log(`The ${e.name} falls. The silence that follows is absolute.`, 'combat');
-  if (e.reward) {
-    state.player.inventory.push(e.reward); log(`Found: ${e.reward}`, 'loot');
-    const fx = ITEM_FX[e.reward]; if (fx?.def) { state.player.def += fx.def; log(fx.msg, 'loot'); }
-  }
-  state.enemy = null; updateStats();
-  if (e.name === 'Hollow Sorcerer') { gameWin(); return; }
-  enterLocation(state.location);
-}
-
-function attemptFlee() {
-  if (Math.random() > 0.4) {
-    log('You slip into shadows and escape. The creature does not follow.', 'combat');
-    state.enemy = null; enterLocation(state.location);
-  } else {
-    const d = Math.max(1, state.enemy.atk - state.player.def); state.player.hp -= d;
-    log(`You try to flee but the ${state.enemy.name} catches you — ${d} damage!`, 'combat');
-    updateStats();
-    if (state.player.hp <= 0) { gameOver('hp'); return; }
-    combatChoices();
-  }
-}
-
-function sageDialogue() {
-  state.phase = 'dialogue';
-  ai('The ancient sage in the tower speaks to the wanderer. Warn them about finding the Iron Key in the crypt, the darkness in the tower. 3 sentences, first person as the sage, cryptic and wise.',
-     '"The key you seek rests in the crypt — cold iron that will outlast you both. The sorcerer in the black tower was a man once, hollowed out by the power he spent decades chasing." He pauses, eyes like coals in ash. "Go. But leave a torch lit at the gate. For your return, if there is one."')
-  .then(() => {
-    state.flags.sageSpoken = true; journalEntry('The sage spoke of the tower');
-    if (!state.flags.sageHealed) {
-      state.flags.sageHealed = true;
-      state.player.hp = Math.min(state.player.maxHp, state.player.hp + 10);
-      log('The sage places a hand on your shoulder. +10 HP.', 'loot');
-      updateStats();
-    }
-    enterLocation('sage');
-  });
-}
-
-function gameOver(cause) {
-  state.phase = 'end';
-  drawGameOver($e('scene-canvas'));
-  $e('location-name').textContent = cause === 'darkness' ? 'THE DARK' : 'FALLEN';
-  log(cause === 'darkness'
-    ? 'The last torch goes out. Something in the dark has been waiting exactly this long.'
-    : 'You have fallen in the vale. The shadows take you.', 'system');
-  ai('The wanderer has died in the vale. Write a brief poetic 2-sentence eulogy.',
-     'The vale does not mourn its dead. Your bones join the long count of those who sought its secrets and found only endings.')
-  .then(() => setChoices([{ label: 'Begin again', lucky: false, action: () => restartGame() }]));
-}
-
-function gameWin() {
-  state.phase = 'end';
-  drawVictory($e('scene-canvas'));
-  $e('location-name').textContent = 'VICTORY';
-  log(`The Ember Crown is yours. You spent ${state.player.decisions} decisions and have ${state.player.torches} torches remaining.`, 'loot');
-  ai('The wanderer defeated the Hollow Sorcerer and claimed the Ember Crown. Write a brief triumphant but melancholy conclusion. 2-3 sentences.',
-     'The sorcerer crumbles to ash. You hold the Ember Crown and find it lighter than you expected — power always is, at first. The gate behind you stands open. The vale does not stop you leaving.')
-  .then(() => setChoices([{ label: 'Play again', lucky: false, action: () => restartGame() }]));
-}
-
-function restartGame() {
-  state.player = { name: 'Wanderer', hp: 30, maxHp: 30, atk: 5, def: 2, inventory: [], explored: new Set(), torches: START_TORCHES, decisions: 0 };
-  state.flags = {}; state.enemy = null; state.phase = 'intro';
-  $e('main').innerHTML = '';
-  $e('sidebar').classList.remove('low-torch');
-  $e('darkness-overlay').classList.remove('consuming');
-  updateStats();
-  startGame();
-}
-
-// ── INIT ──────────────────────────────────────────────────────────
-function initWithKey() {
-  const k = $e('api-key-input').value.trim();
-  if (k) { state.apiKey = k; $e('api-status').className = 'live'; $e('api-status').textContent = '● LIVE'; }
-  $e('api-modal').classList.add('hidden');
-  startGame();
-}
-function initWithoutKey() { $e('api-modal').classList.add('hidden'); startGame(); }
-$e('api-key-input').addEventListener('keydown', e => { if (e.key === 'Enter') initWithKey(); });
-</script>
+  <script type="module" src="./game.js"></script>
 </body>
 </html>
