@@ -11,30 +11,48 @@
     :root {
       --bg: #0D0C0A;
       --text: #F5F0E8;
-      --panel: #2A2825;
+      --mist: #8C8679;
       --ember: #C8692A;
       --gold: #A8924A;
-      --mist: #8C8679;
-      --border: rgba(140, 134, 121, 0.35);
-      --scene-font: 0.56rem;
+      --line: rgba(140, 134, 121, 0.35);
       --log-font: 0.96rem;
       --choice-font: 0.66rem;
+      --input-bg: rgba(13, 12, 10, 0.35);
+      --ascii-0: #181715;
+      --ascii-1: #2A2825;
+      --ascii-2: #3E3A34;
+      --ascii-3: #5E5951;
+      --ascii-4: #8C8679;
+      --ascii-5: #B9B2A7;
+      --ascii-6: #F5F0E8;
+    }
+
+    body.theme-light {
+      --bg: #F5F0E8;
+      --text: #1A1815;
+      --mist: #6F6556;
+      --line: rgba(111, 101, 86, 0.35);
+      --input-bg: rgba(245, 240, 232, 0.65);
+      --ascii-0: #F5F0E8;
+      --ascii-1: #DDD6CA;
+      --ascii-2: #BDB5A6;
+      --ascii-3: #8D8373;
+      --ascii-4: #665D4F;
+      --ascii-5: #403A31;
+      --ascii-6: #1A1815;
     }
 
     .text-size-small {
-      --scene-font: 0.5rem;
       --log-font: 0.88rem;
       --choice-font: 0.62rem;
     }
 
     .text-size-medium {
-      --scene-font: 0.56rem;
       --log-font: 0.96rem;
       --choice-font: 0.66rem;
     }
 
     .text-size-large {
-      --scene-font: 0.63rem;
       --log-font: 1.04rem;
       --choice-font: 0.72rem;
     }
@@ -57,116 +75,71 @@
       color: var(--text);
       font-family: "Crimson Pro", serif;
       font-weight: 300;
-      position: relative;
     }
 
-    #parallax {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
-    .parallax-layer {
-      position: absolute;
-      inset: -8%;
-      will-change: transform;
-      transition: transform 180ms ease-out;
-    }
-
-    .parallax-layer.one {
-      background:
-        radial-gradient(circle at 20% 22%, rgba(200, 105, 42, 0.15), transparent 30%),
-        radial-gradient(circle at 78% 74%, rgba(168, 146, 74, 0.11), transparent 34%);
-      filter: blur(2px);
-    }
-
-    .parallax-layer.two {
-      background:
-        repeating-linear-gradient(110deg, rgba(42, 40, 37, 0.22) 0 2px, transparent 2px 18px),
-        linear-gradient(180deg, rgba(42, 40, 37, 0.82) 0%, rgba(13, 12, 10, 0.88) 68%);
-      opacity: 0.85;
-    }
-
-    .parallax-layer.three {
-      background:
-        radial-gradient(circle at 50% 10%, rgba(245, 240, 232, 0.07), transparent 36%),
-        radial-gradient(circle at 12% 90%, rgba(245, 240, 232, 0.04), transparent 26%);
-      filter: blur(6px);
-      opacity: 0.75;
-    }
-
-    #particles {
-      position: fixed;
-      inset: 0;
-      overflow: hidden;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .particle {
-      position: absolute;
-      width: 2px;
-      height: 2px;
-      background: rgba(245, 240, 232, 0.2);
-      border-radius: 50%;
-      animation: drift linear infinite;
-    }
-
-    .shell {
-      position: relative;
-      z-index: 2;
-      max-width: 1220px;
-      width: calc(100% - 24px);
-      height: calc(100% - 24px);
-      margin: 12px auto;
-      border: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(42, 40, 37, 0.66), rgba(13, 12, 10, 0.72));
-      backdrop-filter: blur(1.2px);
+    #app {
+      width: 100%;
+      height: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 12px 16px 16px;
       display: grid;
-      grid-template-rows: auto 25vh 1fr;
-      min-height: 0;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
     }
 
-    .topbar {
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 10px 12px;
-      min-height: 0;
+    #header {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
     }
 
     .brand {
       font-family: "Cinzel", serif;
-      font-size: 1.06rem;
+      font-size: 1.08rem;
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--gold);
-      white-space: nowrap;
     }
 
-    .tag {
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hud {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
       font-family: "JetBrains Mono", monospace;
       font-size: 0.58rem;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       color: var(--mist);
-      margin-left: 8px;
     }
 
-    .toolbar,
-    .api-group,
-    .size-group {
-      display: flex;
-      gap: 6px;
+    .hud strong {
+      color: var(--text);
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .group {
+      display: inline-flex;
       align-items: center;
-      flex-wrap: wrap;
+      gap: 5px;
     }
 
-    .size-label {
+    .label {
       font-family: "JetBrains Mono", monospace;
       font-size: 0.56rem;
       letter-spacing: 0.08em;
@@ -175,224 +148,113 @@
       margin-right: 2px;
     }
 
-    .ascii-hero {
-      position: relative;
-      border-bottom: 1px solid var(--border);
-      min-height: 0;
-      overflow: hidden;
+    .api-status,
+    input,
+    button {
+      border: 1px solid var(--line);
+      background: var(--input-bg);
+      color: var(--text);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.6rem;
+      padding: 5px 7px;
+      transition: border-color 150ms ease, color 150ms ease;
+    }
+
+    input {
+      width: 170px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled),
+    .text-size-btn.active {
+      border-color: rgba(200, 105, 42, 0.72);
+      color: var(--ember);
+    }
+
+    .theme-btn.active {
+      border-color: rgba(168, 146, 74, 0.8);
+      color: var(--gold);
+    }
+
+    #ascii-wrap {
       display: grid;
-      grid-template-columns: 1fr;
-      grid-template-rows: 1fr auto;
+      justify-items: center;
+      align-items: start;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
     }
 
     #scene-art {
-      width: 100%;
-      height: 100%;
-      padding: 10px 12px 2px;
+      width: 400px;
+      height: 400px;
       margin: 0;
+      padding: 0;
       border: none;
       background: transparent;
       color: var(--text);
       font-family: "JetBrains Mono", monospace;
-      font-size: var(--scene-font);
-      line-height: 1.08;
-      letter-spacing: 0.03em;
+      font-size: 8px;
+      line-height: 8px;
+      letter-spacing: 0.08px;
       white-space: pre;
       overflow: hidden;
       opacity: 1;
-      transition: opacity 220ms ease;
+      transition: opacity 200ms ease;
+      text-align: left;
     }
 
     #scene-art.fade {
       opacity: 0.42;
     }
 
-    .location-title {
-      padding: 4px 12px 10px;
+    #scene-art .a0 { color: var(--ascii-0); }
+    #scene-art .a1 { color: var(--ascii-1); }
+    #scene-art .a2 { color: var(--ascii-2); }
+    #scene-art .a3 { color: var(--ascii-3); }
+    #scene-art .a4 { color: var(--ascii-4); }
+    #scene-art .a5 { color: var(--ascii-5); }
+    #scene-art .a6 { color: var(--ascii-6); }
+
+    #location-title {
+      width: 400px;
+      margin-top: 8px;
       font-family: "Cinzel", serif;
       font-size: 0.75rem;
       letter-spacing: 0.14em;
+      text-transform: uppercase;
       color: var(--ember);
-      text-transform: uppercase;
-      border-top: 1px solid rgba(140, 134, 121, 0.18);
-    }
-
-    .content {
-      display: grid;
-      grid-template-columns: 350px 1fr;
-      min-height: 0;
-    }
-
-    .leftcol {
-      border-right: 1px solid var(--border);
-      padding: 10px;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      gap: 10px;
-      min-height: 0;
-    }
-
-    .block {
-      border-bottom: 1px solid rgba(140, 134, 121, 0.24);
-      padding-bottom: 8px;
-    }
-
-    .panel-label {
-      font-family: "JetBrains Mono", monospace;
-      color: var(--mist);
-      font-size: 0.58rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 7px;
-    }
-
-    .map {
-      position: relative;
-      height: 160px;
-      border: 1px solid rgba(140, 134, 121, 0.22);
-      background: rgba(13, 12, 10, 0.34);
-      overflow: hidden;
-    }
-
-    .map-edge {
-      position: absolute;
-      height: 1px;
-      background: rgba(140, 134, 121, 0.3);
-      transform-origin: left center;
-    }
-
-    .map-node {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      border: 1px solid rgba(140, 134, 121, 0.34);
-      padding: 4px 6px;
-      min-width: 76px;
-      text-align: center;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.53rem;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      background: rgba(13, 12, 10, 0.6);
-      color: var(--mist);
-      user-select: none;
-    }
-
-    .map-node.locked {
-      opacity: 0.35;
-      border-style: dashed;
-    }
-
-    .map-node.unlocked {
-      border-color: rgba(200, 105, 42, 0.62);
-      color: var(--ember);
-    }
-
-    .map-node.discovered {
-      color: var(--text);
-      border-color: rgba(245, 240, 232, 0.48);
-    }
-
-    .map-node.undiscovered {
-      color: var(--mist);
-      border-style: dashed;
-    }
-
-    .map-node.current {
-      color: var(--gold);
-      border-color: rgba(168, 146, 74, 0.74);
-    }
-
-    .map-hint {
-      margin-top: 6px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.54rem;
-      color: var(--mist);
-      line-height: 1.45;
-    }
-
-    .meta {
-      display: grid;
-      gap: 6px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.65rem;
-      color: var(--mist);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .stat-row strong {
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .bar {
-      width: 100%;
-      height: 6px;
-      background: rgba(13, 12, 10, 0.8);
-      border: 1px solid rgba(140, 134, 121, 0.28);
-      margin-top: 3px;
-      overflow: hidden;
-    }
-
-    .bar > span {
-      display: block;
-      height: 100%;
-      width: 100%;
-      transition: width 220ms ease;
-      background: linear-gradient(90deg, var(--ember), var(--gold));
-    }
-
-    #torch-bar {
-      background: linear-gradient(90deg, var(--gold), var(--ember));
-    }
-
-    .inventory {
-      min-height: 0;
-      overflow-y: auto;
-    }
-
-    #inventory-list {
-      display: grid;
-      gap: 4px;
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.64rem;
-      color: var(--gold);
-    }
-
-    .right {
-      min-height: 0;
-      display: grid;
-      grid-template-rows: 1fr auto;
-      overflow: hidden;
+      text-align: left;
     }
 
     #log {
+      width: min(880px, 100%);
+      margin: 0 auto;
       overflow-y: auto;
+      overflow-x: hidden;
       scroll-behavior: smooth;
-      padding: 12px;
       display: grid;
       gap: 10px;
       align-content: start;
       min-height: 0;
+      padding: 4px 2px;
     }
 
     #log p {
       line-height: 1.64;
       font-size: var(--log-font);
-      animation: riseIn 220ms ease-out;
+      animation: riseIn 210ms ease-out;
+      text-align: left;
     }
 
     #log p.system {
       font-family: "JetBrains Mono", monospace;
-      font-size: calc(var(--log-font) - 0.25rem);
+      font-size: calc(var(--log-font) - 0.26rem);
       letter-spacing: 0.03em;
       color: var(--mist);
+      text-transform: uppercase;
     }
 
     #log p.accent {
@@ -405,12 +267,13 @@
     }
 
     #choices {
-      border-top: 1px solid var(--border);
-      padding: 10px 12px 12px;
+      width: min(880px, 100%);
+      margin: 0 auto;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
       display: grid;
       gap: 7px;
-      background: rgba(13, 12, 10, 0.2);
-      max-height: 220px;
+      max-height: 230px;
       overflow-y: auto;
     }
 
@@ -419,11 +282,11 @@
       letter-spacing: 0.02em;
       padding: 8px 10px;
       font-size: var(--choice-font);
-      border: 1px solid rgba(140, 134, 121, 0.38);
-      background: rgba(13, 12, 10, 0.46);
+      border: 1px solid var(--line);
+      background: var(--input-bg);
       color: var(--text);
       font-family: "JetBrains Mono", monospace;
-      transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+      transition: border-color 150ms ease, color 150ms ease, transform 150ms ease;
       cursor: pointer;
     }
 
@@ -443,59 +306,8 @@
       cursor: not-allowed;
     }
 
-    .api-status,
-    input,
-    button {
-      border: 1px solid rgba(140, 134, 121, 0.42);
-      background: rgba(13, 12, 10, 0.62);
-      color: var(--text);
-      font-family: "JetBrains Mono", monospace;
-      font-size: 0.6rem;
-      padding: 5px 7px;
-      transition: border-color 160ms ease, color 160ms ease;
-    }
-
-    .api-status {
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--mist);
-    }
-
-    .api-status.live {
-      color: var(--gold);
-      border-color: rgba(168, 146, 74, 0.64);
-    }
-
-    input {
-      width: 170px;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    button:hover:not(:disabled),
-    .text-size-btn.active {
-      border-color: rgba(200, 105, 42, 0.72);
-      color: var(--ember);
-    }
-
     .pulse-danger {
       animation: pulseDanger 1.3s infinite;
-    }
-
-    @keyframes drift {
-      from {
-        transform: translateY(110vh) translateX(0);
-        opacity: 0;
-      }
-      20% {
-        opacity: 0.5;
-      }
-      to {
-        transform: translateY(-12vh) translateX(20px);
-        opacity: 0;
-      }
     }
 
     @keyframes riseIn {
@@ -514,118 +326,73 @@
       50% { box-shadow: inset 0 0 0 2px rgba(200, 105, 42, 0.28); }
     }
 
-    @media (max-width: 1060px) {
-      .shell {
-        width: calc(100% - 14px);
-        height: calc(100% - 14px);
-        margin: 7px auto;
-        grid-template-rows: auto 28vh 1fr;
-      }
-
-      .content {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-      }
-
-      .leftcol {
-        border-right: none;
-        border-bottom: 1px solid var(--border);
+    @media (max-width: 880px) {
+      #app {
+        padding: 10px;
       }
 
       input {
         width: 130px;
       }
 
-      .topbar {
-        align-items: flex-start;
-        flex-direction: column;
+      #scene-art,
+      #location-title {
+        width: 300px;
+      }
+
+      #scene-art {
+        height: 300px;
+        font-size: 6px;
+        line-height: 6px;
+        letter-spacing: 0.06px;
       }
     }
   </style>
 </head>
-<body class="text-size-medium">
-  <div id="parallax" aria-hidden="true">
-    <div class="parallax-layer one"></div>
-    <div class="parallax-layer two"></div>
-    <div class="parallax-layer three"></div>
-  </div>
-
-  <div id="particles" aria-hidden="true"></div>
-
-  <div class="shell">
-    <header class="topbar">
-      <div>
-        <span class="brand">Pixel &amp; Prose</span>
-        <span class="tag">Every action costs one torch</span>
-      </div>
+<body class="text-size-medium theme-dark">
+  <main id="app">
+    <header id="header">
+      <div class="brand">Pixel &amp; Prose</div>
 
       <div class="toolbar">
-        <div class="size-group">
-          <span class="size-label">Text</span>
+        <div class="group">
+          <span class="label">Text</span>
           <button type="button" class="text-size-btn" data-size="small">S</button>
           <button type="button" class="text-size-btn active" data-size="medium">M</button>
           <button type="button" class="text-size-btn" data-size="large">L</button>
         </div>
 
-        <div class="api-group">
+        <div class="group">
+          <span class="label">Theme</span>
+          <button type="button" class="theme-btn active" data-theme="dark">Dark</button>
+          <button type="button" class="theme-btn" data-theme="light">Light</button>
+        </div>
+
+        <div class="group">
           <span id="api-status" class="api-status">AI Offline</span>
           <input id="api-key" type="password" placeholder="OpenAI key (optional)" autocomplete="off" />
           <button id="api-connect" type="button">Connect</button>
           <button id="restart" type="button">Restart</button>
         </div>
       </div>
+
+      <div class="hud">
+        <span>HP<strong id="stat-hp">24 / 24</strong></span>
+        <span>Torches<strong id="stat-torches">5</strong></span>
+        <span>ATK/DEF<strong id="stat-atkdef">5 / 2</strong></span>
+        <span>Zones<strong id="stat-location">1 / 5</strong></span>
+        <span>Inventory<strong id="stat-inventory">none</strong></span>
+      </div>
     </header>
 
-    <section class="ascii-hero">
+    <section id="ascii-wrap">
       <pre id="scene-art" aria-label="Current scene" role="img"></pre>
-      <div id="location-title" class="location-title">Ruined Gate</div>
+      <div id="location-title">Ruined Gate</div>
     </section>
 
-    <div class="content">
-      <aside class="leftcol">
-        <section class="block">
-          <div class="panel-label">Zone Map</div>
-          <div class="map" id="map-panel">
-            <div class="map-edge" style="left: 26%; top: 26%; width: 28%; transform: rotate(18deg);"></div>
-            <div class="map-edge" style="left: 52%; top: 27%; width: 24%; transform: rotate(-16deg);"></div>
-            <div class="map-edge" style="left: 30%; top: 52%; width: 23%; transform: rotate(-16deg);"></div>
-            <div class="map-edge" style="left: 56%; top: 50%; width: 25%; transform: rotate(16deg);"></div>
-
-            <div class="map-node" data-location="gate" data-label="Gate" style="left: 23%; top: 26%;">Gate</div>
-            <div class="map-node" data-location="forest" data-label="Forest" style="left: 50%; top: 35%;">Forest</div>
-            <div class="map-node" data-location="crypt" data-label="Crypt" style="left: 72%; top: 24%;">Crypt</div>
-            <div class="map-node" data-location="tower" data-label="Tower" style="left: 42%; top: 60%;">Tower</div>
-            <div class="map-node" data-location="throne" data-label="Throne" style="left: 73%; top: 70%;">Throne</div>
-          </div>
-          <p class="map-hint">Map is informational. Move between zones through the decision list.</p>
-        </section>
-
-        <section class="block">
-          <div class="panel-label">Current Stats</div>
-          <div class="meta">
-            <div class="stat-row"><span>HP</span><strong id="stat-hp">24 / 24</strong></div>
-            <div class="bar" aria-hidden="true"><span id="hp-bar"></span></div>
-
-            <div class="stat-row"><span>Torches</span><strong id="stat-torches">5</strong></div>
-            <div class="bar" aria-hidden="true"><span id="torch-bar"></span></div>
-
-            <div class="stat-row"><span>ATK / DEF</span><strong id="stat-atkdef">5 / 2</strong></div>
-            <div class="stat-row"><span>Zones</span><strong id="stat-location">1 / 5</strong></div>
-          </div>
-        </section>
-
-        <section class="inventory">
-          <div class="panel-label">Inventory</div>
-          <div id="inventory-list"></div>
-        </section>
-      </aside>
-
-      <main class="right">
-        <section id="log" aria-live="polite"></section>
-        <section id="choices" aria-label="Available choices"></section>
-      </main>
-    </div>
-  </div>
+    <section id="log" aria-live="polite"></section>
+    <section id="choices" aria-label="Available choices"></section>
+  </main>
 
   <script type="module" src="./game.js"></script>
 </body>

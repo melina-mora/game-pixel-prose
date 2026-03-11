@@ -1,7 +1,7 @@
 import { renderScene, stopScene } from './sprites.js';
 
 // game.js
-// State machine is centralized here so UI, map, and narrative remain synchronized.
+// State machine is centralized here so UI, narrative, and decisions remain synchronized.
 
 const START_TORCHES = 5;
 const TORCH_REWARD_CHANCE = 0.32;
@@ -120,28 +120,26 @@ const state = {
 };
 
 const ui = {
+  app: document.getElementById('app'),
   body: document.body,
   sceneArt: document.getElementById('scene-art'),
   locationTitle: document.getElementById('location-title'),
   statHp: document.getElementById('stat-hp'),
-  hpBar: document.getElementById('hp-bar'),
   statTorches: document.getElementById('stat-torches'),
-  torchBar: document.getElementById('torch-bar'),
   statAtkDef: document.getElementById('stat-atkdef'),
   statLocation: document.getElementById('stat-location'),
-  inventoryList: document.getElementById('inventory-list'),
-  mapNodes: [...document.querySelectorAll('.map-node')],
-  rightPanel: document.querySelector('.right'),
+  statInventory: document.getElementById('stat-inventory'),
   log: document.getElementById('log'),
   choices: document.getElementById('choices'),
   apiInput: document.getElementById('api-key'),
   apiStatus: document.getElementById('api-status'),
   apiConnect: document.getElementById('api-connect'),
   restart: document.getElementById('restart'),
-  particles: document.getElementById('particles'),
-  parallaxLayers: [...document.querySelectorAll('.parallax-layer')],
   textSizeButtons: [...document.querySelectorAll('.text-size-btn')],
+  themeButtons: [...document.querySelectorAll('.theme-btn')],
 };
+
+let layoutObserver = null;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -232,7 +230,8 @@ function logLine(text, tone = '') {
   }
 
   requestAnimationFrame(() => {
-    ui.log.scrollTo({ top: ui.log.scrollHeight, behavior: 'smooth' });
+    syncConsoleHeight();
+    scrollLogToLatest();
   });
 }
 
@@ -240,33 +239,31 @@ function clearLog() {
   ui.log.innerHTML = '';
 }
 
+function scrollLogToLatest() {
+  ui.log.scrollTop = ui.log.scrollHeight;
+}
+
+function syncConsoleHeight() {
+  const logTop = ui.log.getBoundingClientRect().top;
+  const choicesTop = ui.choices.getBoundingClientRect().top;
+  const available = Math.max(80, Math.floor(choicesTop - logTop - 8));
+  ui.log.style.height = `${available}px`;
+  ui.log.style.maxHeight = `${available}px`;
+}
+
 function renderStats() {
   ui.statHp.textContent = `${state.player.hp} / ${state.player.maxHp}`;
   ui.statTorches.textContent = String(state.player.torches);
   ui.statAtkDef.textContent = `${state.player.atk} / ${state.player.def}`;
   ui.statLocation.textContent = `${state.visited.size} / ${Object.keys(LOCATIONS).length}`;
-
-  const hpPercent = Math.max(0, Math.round((state.player.hp / state.player.maxHp) * 100));
-  const torchPercent = Math.max(0, Math.min(100, Math.round((state.player.torches / START_TORCHES) * 100)));
-
-  ui.hpBar.style.width = `${hpPercent}%`;
-  ui.torchBar.style.width = `${torchPercent}%`;
-
-  ui.inventoryList.innerHTML = '';
   const entries = Object.entries(state.inventory);
   if (!entries.length) {
-    const empty = document.createElement('div');
-    empty.textContent = 'No items';
-    empty.style.color = 'var(--mist)';
-    ui.inventoryList.appendChild(empty);
+    ui.statInventory.textContent = 'none';
     return;
   }
 
-  entries.forEach(([item, count]) => {
-    const itemLine = document.createElement('div');
-    itemLine.textContent = `${item}${count > 1 ? ` x${count}` : ''}`;
-    ui.inventoryList.appendChild(itemLine);
-  });
+  const compact = entries.map(([item, count]) => `${item}${count > 1 ? ` x${count}` : ''}`).join(', ');
+  ui.statInventory.textContent = compact;
 }
 
 function disableChoices(disabled) {
@@ -276,24 +273,7 @@ function disableChoices(disabled) {
 }
 
 function renderMap() {
-  const current = state.locationId;
-  const exits = state.phase === 'explore' ? new Set(LOCATIONS[current].exits) : new Set();
-
-  ui.mapNodes.forEach((node) => {
-    const nodeId = node.dataset.location;
-    const nodeLabel = node.dataset.label || nodeId;
-    const isCurrent = nodeId === current;
-    const isDiscovered = isCurrent || state.visited.has(nodeId);
-    const isUnlocked = isCurrent || exits.has(nodeId);
-
-    node.classList.toggle('current', isCurrent);
-    node.classList.toggle('discovered', isDiscovered);
-    node.classList.toggle('undiscovered', !isDiscovered);
-    node.classList.toggle('unlocked', isUnlocked);
-    node.classList.toggle('locked', !isUnlocked);
-
-    node.textContent = isDiscovered ? nodeLabel : '???';
-  });
+  // Map UI removed by design in the flat three-section layout.
 }
 
 function maybeGrantTorches() {
@@ -386,6 +366,11 @@ function setChoices(choiceDefs) {
     });
 
     ui.choices.appendChild(button);
+  });
+
+  requestAnimationFrame(() => {
+    syncConsoleHeight();
+    scrollLogToLatest();
   });
 }
 
@@ -800,7 +785,7 @@ function loseGame(reason) {
     logLine('Lose condition met: torches reduced to 0.', 'system');
   }
 
-  ui.rightPanel.classList.add('pulse-danger');
+  ui.app.classList.add('pulse-danger');
 
   setChoices([
     {
@@ -818,18 +803,7 @@ function loseGame(reason) {
 }
 
 function createParticles() {
-  ui.particles.innerHTML = '';
-  const particleCount = 36;
-
-  for (let i = 0; i < particleCount; i += 1) {
-    const dot = document.createElement('span');
-    dot.className = 'particle';
-    dot.style.left = `${randomInt(0, 100)}vw`;
-    dot.style.animationDuration = `${randomInt(14, 32)}s`;
-    dot.style.animationDelay = `${randomInt(0, 20)}s`;
-    dot.style.opacity = (Math.random() * 0.55).toFixed(2);
-    ui.particles.appendChild(dot);
-  }
+  // Ambient particles removed to keep the background flat and solid.
 }
 
 function applyTextSize(size) {
@@ -839,24 +813,22 @@ function applyTextSize(size) {
   ui.textSizeButtons.forEach((button) => {
     button.classList.toggle('active', button.dataset.size === size);
   });
+  requestAnimationFrame(() => {
+    syncConsoleHeight();
+    scrollLogToLatest();
+  });
 }
 
-function bindParallax() {
-  if (!ui.parallaxLayers.length) {
-    return;
-  }
-
-  window.addEventListener('mousemove', (event) => {
-    const nx = event.clientX / window.innerWidth - 0.5;
-    const ny = event.clientY / window.innerHeight - 0.5;
-    const strengths = [8, 14, 20];
-
-    ui.parallaxLayers.forEach((layer, index) => {
-      const strength = strengths[index] || 10;
-      const tx = nx * strength;
-      const ty = ny * strength;
-      layer.style.transform = `translate(${tx}px, ${ty}px)`;
-    });
+function applyTheme(theme) {
+  const className = `theme-${theme}`;
+  ui.body.classList.remove('theme-dark', 'theme-light');
+  ui.body.classList.add(className);
+  ui.themeButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.theme === theme);
+  });
+  requestAnimationFrame(() => {
+    syncConsoleHeight();
+    scrollLogToLatest();
   });
 }
 
@@ -892,6 +864,26 @@ function bindUi() {
       applyTextSize(button.dataset.size || 'medium');
     });
   });
+
+  ui.themeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      applyTheme(button.dataset.theme || 'dark');
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    syncConsoleHeight();
+    scrollLogToLatest();
+  });
+
+  if ('ResizeObserver' in window) {
+    layoutObserver = new ResizeObserver(() => {
+      syncConsoleHeight();
+      scrollLogToLatest();
+    });
+    layoutObserver.observe(ui.app);
+    layoutObserver.observe(ui.choices);
+  }
 }
 
 function resetGame() {
@@ -914,7 +906,7 @@ function resetGame() {
   state.inventory = {};
   state.choiceLocked = false;
 
-  ui.rightPanel.classList.remove('pulse-danger');
+  ui.app.classList.remove('pulse-danger');
   clearLog();
   renderStats();
 
@@ -922,9 +914,14 @@ function resetGame() {
   logLine('Every action costs one torch. If your light reaches zero, the dark takes you.', 'system');
 
   enterLocation('gate', false, state.sessionId);
+
+  requestAnimationFrame(() => {
+    syncConsoleHeight();
+    scrollLogToLatest();
+  });
 }
 
 bindUi();
-bindParallax();
+applyTheme('dark');
 createParticles();
 resetGame();

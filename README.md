@@ -34,10 +34,10 @@ Deploy directly to Netlify, GitHub Pages, or Vercel.
 
 ## Tech decisions
 - Module split:
-  - [`index.html`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/index.html): layout, styling, map shell, atmospheric UI/particles.
-  - [`game.js`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/game.js): state machine, torch action wrapper, encounters/combat, map interaction, AI fallback orchestration.
-  - [`sprites.js`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/sprites.js): animated ASCII scene renderer by game state.
-- Single `state` object controls UI, map, narrative, and combat to prevent drift.
+  - [`index.html`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/index.html): flat centered layout with three gameplay sections (ASCII art, console, decisions), grayscale ASCII color system, theme/text-size controls.
+  - [`game.js`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/game.js): state machine, torch action wrapper, encounters/combat, AI fallback orchestration, UI controls.
+  - [`sprites.js`](/Users/melinasrm/Documents/40-49%20Projects/PixelProseGame/sprites.js): detailed 82x50 ASCII scene renderer displayed in a 400x400 viewport.
+- Single `state` object controls UI, narrative, and combat to prevent drift.
 - Action wrapper enforces the torch rule globally, so every decision path stays consistent.
 - Auto-scroll narrative log keeps newest text visible without requiring manual scroll.
 
@@ -54,9 +54,11 @@ Deploy directly to Netlify, GitHub Pages, or Vercel.
 
 ## Illustration system notes
 - No external gameplay images are used.
-- Scenes are rendered as lightweight animated ASCII art in a `<pre>` block.
+- Scenes are rendered as detailed animated ASCII art in a fixed `400x400` `<pre>` viewport.
+- ASCII depth is produced with per-character grayscale tone classes (`a0`..`a6`) for light, mid, and shadow values.
 - Scene transitions are state-driven (`gate`, `forest`, `crypt`, `tower`, `throne`, `encounter`, `victory`, `gameover`).
 - Animation is subtle and atmospheric (flicker, blink, drift, pulse) using character swaps on a timed loop.
+- UI includes user-selectable dark mode and light mode.
 - UI keeps the strict project palette:
   - `#0D0C0A` background
   - `#2A2825` panel
@@ -68,6 +70,6 @@ Deploy directly to Netlify, GitHub Pages, or Vercel.
 ## Future v2 features
 1. Deterministic seeded runs for reproducible QA playthroughs.
 2. Accessibility profile toggles (reduced motion, high contrast, larger monospace scene text).
-3. Deeper map interactions (events attached to routes, not only zones).
+3. Branching scene events that trigger from decision history and inventory state.
 4. Enemy intent telegraphing and status effects while keeping combat readable.
 5. Optional URL-encoded session snapshots for shareable builds without backend persistence.
